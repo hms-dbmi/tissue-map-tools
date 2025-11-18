@@ -76,10 +76,10 @@ sdata = sd.read_zarr(f)
 # sdata["cells_baysor"] = cells_baysor_cropped
 
 ##
-from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-    raster=sdata["dapi_labels"],
-    precomputed_path=str(precomputed_path),
-)
+# from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+#     raster=sdata["dapi_labels"],
+#     precomputed_path=str(precomputed_path),
+# )
 
 ##
 # from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
@@ -94,8 +94,8 @@ from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
 subset = RNG.choice(len(sdata["molecule_baysor"]), 10000, replace=False)
 
 print(sdata["molecule_baysor"].columns)
-# subset_df = sdata["molecule_baysor"].compute().iloc[subset]
-subset_df = sdata["molecule_baysor"].compute()
+subset_df = sdata["molecule_baysor"].compute().iloc[subset]
+# subset_df = sdata["molecule_baysor"].compute()
 subset_df = subset_df[
     [
         # working
