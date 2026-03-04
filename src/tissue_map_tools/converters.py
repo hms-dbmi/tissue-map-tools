@@ -11,17 +11,18 @@ from dask.dataframe import DataFrame as DaskDataFrame
 from numpy.random import default_rng
 import pandas as pd
 import json
+from spatialdata._docs import docstring_parameter
 
 
 from tissue_map_tools.data_model.annotations import (
     AnnotationInfo,
     AnnotationProperty,
-    AnnotationRelationship,
     compute_spatial_index,
     write_annotation_id_index,
     write_related_object_id_index,
     write_spatial_index,
     get_coordinates_and_kd_tree,
+    AnnotationRelationship,
 )
 from tissue_map_tools.data_model.annotations_utils import (
     from_pandas_column_to_annotation_property,
@@ -33,7 +34,13 @@ RNG = default_rng(42)
 # that convert to precomputed format
 DEFAULT_UNITS_FACTOR = 1000
 
+UNITS_FACTOR_DOCS = """\
+    The factor to convert the pixel sizes to nanometers. For example, if the pixel
+        sizes is in microns, use 1000 (default).
+"""
 
+
+@docstring_parameter(units_factor_docs=UNITS_FACTOR_DOCS)
 def from_ome_zarr_04_raster_to_precomputed_raster(
     ome_zarr_path: str | Path,
     precomputed_path: str | Path,
@@ -54,7 +61,7 @@ def from_ome_zarr_04_raster_to_precomputed_raster(
         the "c" axis, which is used for channels). If False, the data is treated as an image.
         If None, the function will try to infer it from the data.
     units_factor
-        TODO: document this parameter.
+    {units_factor_docs}
     """
     # read raster data
     ome_zarr_path = Path(ome_zarr_path)
@@ -147,13 +154,9 @@ def from_ome_zarr_04_raster_to_precomputed_raster(
     if remove_c:
         dask_data_scale0 = dask_data_scale0.squeeze(axis=axes_index["c"])
         axes.remove("c")
-        axes_index = {ax: i for i, ax in enumerate(axes)}
+        # not used
+        # axes_index = {ax: i for i, ax in enumerate(axes)}
 
-    # axes_cloudvolume = [ax for ax in ["x", "y", "z", "c"] if ax in axes]
-    # # cloud volume wants x, y, z(, c) axes order
-    # transposed = dask_data_scale0.transpose(
-    #     *[axes_index[ax] for ax in axes_cloudvolume]
-    # )
     transposed = _transpose_dask_data_for_cloudvolume(dask_data_scale0, axes=axes)
 
     pixel_sizes = {
@@ -188,6 +191,7 @@ def _transpose_dask_data_for_cloudvolume(
     return dask_data.transpose(*[axes_index[ax] for ax in axes_cloudvolume])
 
 
+@docstring_parameter(units_factor_docs=UNITS_FACTOR_DOCS)
 def from_spatialdata_raster_to_precomputed_raster(
     raster: DataArray | DataTree,
     precomputed_path: str | Path,
@@ -200,7 +204,7 @@ def from_spatialdata_raster_to_precomputed_raster(
     raster
     precomputed_path
     units_factor
-        TODO: document this parameter.
+    {units_factor_docs}
 
     Returns
     -------
@@ -260,7 +264,7 @@ def from_spatialdata_points_to_precomputed_points(
     points: DaskDataFrame | pd.DataFrame,
     precomputed_path: str | Path,
     points_name: str | None = None,
-    limit: int = 1000,
+    limit: int = 50000,
     starting_grid_shape: tuple[int, ...] | None = None,
 ) -> None:
     """
@@ -284,70 +288,15 @@ def from_spatialdata_points_to_precomputed_points(
     if isinstance(points, DaskDataFrame):
         points = points.compute()
 
-    # # this is a semi-hardcoded example of a relationship; we could generalize
-    # TODO: delete this code since AFAIU relationships are better suited for graphs/neighbors
-    #  and storing a relationship between categorical values would require to store all the
-    #  points that have a certain categorical value, for each point! -> N^2 storage
-    # def get_relationships_by_categorical_values(
-    #     df: pd.DataFrame, column: str
-    # ) -> list[AnnotationRelationship]:
-    #     if df[column].dtype != "category":
-    #         raise ValueError(
-    #             f"Column {column} is not of type 'category'. "
-    #             "Relationships can only be created from categorical columns."
-    #         )
-    #     col = df[column]
-    #     relationships = []
-    #     for value in col.cat.categories:
-    #         relationship = AnnotationRelationship(
-    #             id=f"{column}_{value}",
-    #             key=f"{column}_{value}",
-    #         )
-    #         relationships.append(relationship)
-    #     return relationships
-
-    xyz, kd_tree = get_coordinates_and_kd_tree(points)
-    # this just a hardcoded example of relationship: we hardcode 3 random points and
-    # we relate all the objects that are within a certain distance to those points
-    ##
-    clusters = ["a", "b", "c"]
-    cluster_centers = {
-        "a": [0.0, 0.0, 0.0],
-        "b": [1.0, 1.0, 1.0],
-        "c": [0.3, 0.3, 0.3],
-    }
-    cluster_radii = {
-        "a": 0.1,
-        "b": 0.2,
-        "c": 0.3,
-    }
-    MAX_NEIGHBORS = 1000
-    cluster_neighbors: dict[str, list[int]] = {}
-    for cluster_id in clusters:
-        cluster_center = cluster_centers[cluster_id]
-        cluster_radius = cluster_radii[cluster_id]
-        neighbors = kd_tree.query_ball_point(
-            cluster_center,
-            r=cluster_radius,
-        )
-        cluster_neighbors[cluster_id] = neighbors[:MAX_NEIGHBORS]
-    id_to_cluster: dict[int, str] = {}
-    for cluster_id, neighbors in cluster_neighbors.items():
-        for neighbor in neighbors:
-            id_to_cluster[neighbor] = cluster_id
-
-    ##
     spatial_columns = ["x", "y", "z"]
+    xyz, kd_tree = get_coordinates_and_kd_tree(points)
+    ##
     properties: list[AnnotationProperty] = [
         from_pandas_column_to_annotation_property(df=points, column=col)
         for col in points.columns
         if col not in spatial_columns
     ]
-    # hardcoded example
-    relationships = [
-        AnnotationRelationship(id=f"neighbors_{cluster}", key=f"neighbors_{cluster}")
-        for cluster in clusters
-    ]
+    relationships: list[AnnotationRelationship] = []
 
     ##
     # compute annotations_by_index_id, used in write_annotation_id_index()
@@ -375,11 +324,7 @@ def from_spatialdata_points_to_precomputed_points(
                 k_index = points_categorical.columns.get_loc(k)
                 v = points_categorical.iloc[i, k_index]
             properties_values[k] = v
-        if i not in id_to_cluster:
-            relationships_values = {}
-        else:
-            cluster = id_to_cluster[i]
-            relationships_values = {f"neighbors_{cluster}": cluster_neighbors[cluster]}
+        relationships_values: dict[str, list[int]] = {}
         annotations_by_index_id[i] = (coords, properties_values, relationships_values)
 
     ##
@@ -388,18 +333,6 @@ def from_spatialdata_points_to_precomputed_points(
         str,
         dict[int, list[tuple[int, list[float], dict[str, Any]]]],
     ] = {}
-    for cluster in clusters:
-        relationship_name = f"neighbors_{cluster}"
-        annotations_by_object_id[relationship_name] = {}
-        for neighbor_i in cluster_neighbors[cluster]:
-            annotations_by_object_id[relationship_name][neighbor_i] = []
-            for neighbor_j in neighbors:
-                if neighbor_i == neighbor_j:
-                    continue
-                coords, properties_values, _ = annotations_by_index_id[neighbor_j]
-                annotations_by_object_id[relationship_name][neighbor_i].append(
-                    (neighbor_j, coords, properties_values)
-                )
     ##
     grid = compute_spatial_index(
         xyz=xyz,
@@ -411,7 +344,7 @@ def from_spatialdata_points_to_precomputed_points(
     # TODO: ensure that the data is anisotropic by looking at the coordinate
     #  transformation
     # TODO: the dimensions belows need to be adjusted, here we are assuming the units
-    #  to be meters
+    #  to be nanometers
     spatial: list[dict[str, Any]] = []
     kw = {
         "@type": "neuroglancer_annotations_v1",
@@ -472,11 +405,6 @@ def from_spatialdata_points_to_precomputed_points(
         root_path=points_path,
         annotations=annotations_by_index_id,
     )
-    # from tissue_map_tools.data_model.annotations import read_annotation_id_index
-    # debug = read_annotation_id_index(info=annotation_info, root_path=points_path)
-    #
-    # for k, v in debug.items():
-    #     assert debug[k][1]['gene'] == annotations_by_index_id[k][1]['gene'].item()
 
     write_related_object_id_index(
         info=annotation_info,
@@ -488,7 +416,8 @@ def from_spatialdata_points_to_precomputed_points(
     # for each spatial index, compute annotations_by_spatial_chunk, used in
     # write_spatial_index()
     # TODO: we should not use enumerate here because the i is already present in the
-    #  key of "AnnotationSpatialLevel"
+    #  key of "AnnotationSpatialLevel". In doing so, one need to check if both start
+    #  from 0
     for i, annotation_spatial_level in enumerate(annotation_info.spatial):
         annotations_by_spatial_chunk: dict[
             str, list[tuple[int, list[float], dict[str, Any]]]

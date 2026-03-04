@@ -196,7 +196,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
     nlod: int = DEFAULT_NLOD,
     min_chunk_size: tuple[int, int, int] = DEFAULT_MIN_CHUNK_SIZE,
     parallel: int | bool = True,
-):
+) -> None:
     """
     Convert a SpatialData raster element to a sharded precomputed volume with meshes.
 
