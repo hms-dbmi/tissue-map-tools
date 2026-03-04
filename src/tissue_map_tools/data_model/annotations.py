@@ -904,7 +904,7 @@ def get_coordinates_and_kd_tree(
     Extract xyz coordinates and create a KDTree.
     """
     # TODO: we can generalize to 2D points. 1D points do not make much sense. If we
-    #  only hjave 1D or 2D point the following line will throw an error.
+    #  only have 1D or 2D point the following line will throw an error.
     if isinstance(points, DaskDataFrame):
         xyz = points[["x", "y", "z"]].compute().values
     else:
@@ -1016,7 +1016,7 @@ def compute_spatial_index(
                     emitted = indices
                     RNG.shuffle(emitted)
                 else:
-                    # BIG BUG! see here:
+                    # TODO: BIG BUG! see here:
                     # https://github.com/google/neuroglancer/issues/227#issuecomment-916384909
                     emitted = RNG.choice(indices, size=limit, replace=False)
                 if PRINT_DEBUG:

@@ -288,6 +288,9 @@ for row in df.itertuples():
     gdf = gdf[mask]
     gdf = sd.models.ShapesModel.parse(gdf)
     shapes_per_layer[row.z_id] = gdf
+    # TODO: verify that it's not needed (old way to fix scale factor z)
+    # z_raw = layer_index_to_z_raw(row.z_id)
+    # gdf["z"] = (z_raw / a).item()
     print(f"Layer {row.z_id}: {len(gdf)} shapes, skipped {skipped} empty geometries")
 ##
 
