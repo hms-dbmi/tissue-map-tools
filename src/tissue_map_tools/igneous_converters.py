@@ -134,12 +134,14 @@ def from_precomputed_raster_to_precomputed_meshes(
             cloudpath=data_path,
             num_lod=nlod,
             min_chunk_size=min_chunk_size,
+            mesh_dir=mesh_name,
         )
     else:
         merge_task = create_unsharded_multires_mesh_tasks(
             cloudpath=data_path,
             num_lod=nlod,
             min_chunk_size=min_chunk_size,
+            mesh_dir=mesh_name,
         )
     task_queue.insert(merge_task)
     task_queue.execute()

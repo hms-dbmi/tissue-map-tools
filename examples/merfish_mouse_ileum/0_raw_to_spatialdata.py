@@ -366,10 +366,9 @@ for layer in list(shapes_per_layer.keys()):
 gdf_all_layers = pd.concat(shapes_per_layer.values(), ignore_index=True)
 gdf_all_layers = gpd.GeoDataFrame(gdf_all_layers, geometry="geometry")
 
+
 ##
-# code from owkin hackathon
-
-
+# code from owkin hackathon from Karen Herreman and Quentin Blampey
 def match_cells_iomin(
     layer1: GeoDataFrame, layer2: GeoDataFrame, threshold: float
 ) -> dict[int, list[int]]:
@@ -417,6 +416,8 @@ def match_cells_iomin(
     return matched_indices
 
 
+# process_pseudo3D_shapes() and match_cells_iomin() are contributed from Karen Herreman
+# and Quentin Blampey during the scverse <> owkin hackathon
 def process_pseudo3D_shapes(
     gdf: GeoDataFrame, threshold: float = 0.3, cell_column: str = "cell_id"
 ) -> GeoDataFrame:
