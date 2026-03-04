@@ -958,8 +958,17 @@ def compute_spatial_index(
         parent_cells=parent_cells,
         parent_grid_shape=starting_grid_shape,
     )
-    # to avoid the risk of points in the boundary of the grid not being included
-    eps = 1e-6
+    # to avoid the risk of points in the boundary of the grid not being included;
+    # eps must be relative to the coordinate magnitude, otherwise for large float
+    # values, an absolute eps gets swallowed by floating point precision
+    coordinate_magnitude = max(np.abs(mins).max(), np.abs(maxs).max())
+    # magnitude * dtype_eps gives a ULP (unit in the last place)
+    # we multiply this by a small factor (2)
+    if not (
+        np.issubdtype(xyz.dtype, np.floating) or np.issubdtype(xyz.dtype, np.integer)
+    ):
+        raise TypeError(f"Expected numerical dtype for xyz, got {xyz.dtype}")
+    eps = max(1e-6, float(coordinate_magnitude * np.finfo(xyz.dtype).eps * 2))  # type: ignore[type-var]
     len_previous_remaining_indices = len(remaining_indices)
 
     while len(remaining_indices) > 0:
