@@ -1,3 +1,5 @@
+from packaging.version import Version
+import cloudvolume
 from cloudvolume.datasource.precomputed.sharding import (
     ShardReader,
     ShardingSpecification,
@@ -31,7 +33,8 @@ def get_ids_from_mesh_files(
     """
     root_data_path = Path(root_data_path)
     data_path = Path(data_path)
-    cv = CloudVolume(cloudpath=str(root_data_path))
+    cloudpath = str(root_data_path)
+    cv = CloudVolume(cloudpath=cloudpath)
     meta = cv.mesh.meta
     cache = cv.mesh.cache
     if "sharding" in cv.mesh.meta.info:
@@ -39,7 +42,15 @@ def get_ids_from_mesh_files(
         data["type"] = data["@type"]
         del data["@type"]
         sharding_specification = ShardingSpecification(**data)
-        shard_reader = ShardReader(meta=meta, cache=cache, spec=sharding_specification)
+
+        if Version(cloudvolume.__version__) >= Version("12.9.0"):
+            shard_reader = ShardReader(
+                cloudpath=cloudpath, cache=cache, spec=sharding_specification
+            )
+        else:
+            shard_reader = ShardReader(
+                meta=meta, cache=cache, spec=sharding_specification
+            )
         # list all shard files
         if shard_filename is None:
             shard_files = [str(f) for f in data_path.glob("*.shard")]
