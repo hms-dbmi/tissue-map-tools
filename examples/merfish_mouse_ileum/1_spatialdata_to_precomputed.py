@@ -36,15 +36,16 @@ sdata = sd.read_zarr(f)
 
 ##
 # subset the data
-# sdata_small = sd.bounding_box_query(
-#     sdata,
-#     axes=("x", "y", "z"),
-#     min_coordinate=[4000, 0, -10],
-#     max_coordinate=[5000, 1500, 200],
-#     target_coordinate_system="global",
-# )
-#
-# transformation = sd.transformations.get_transformation(sdata_small["dapi"])
+sdata_small = sd.bounding_box_query(
+    sdata,
+    axes=("x", "y", "z"),
+    min_coordinate=[4000, 0, -10],
+    max_coordinate=[5000, 1500, 200],
+    target_coordinate_system="global",
+)
+
+# print(sdata)
+# transformation = sd.transformations.get_transformation(sdata_small["stains"])
 # translation_vector = transformation.to_affine_matrix(
 #     input_axes=("x", "y", "z"), output_axes=("x", "y", "z")
 # )[:3, 3]
@@ -82,16 +83,16 @@ sdata = sd.read_zarr(f)
 # )
 
 ##
-# from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-#     raster=sdata["membrane_labels"],
-#     precomputed_path=str(precomputed_path),
-# )
+from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+    raster=sdata["membrane_labels"],
+    precomputed_path=str(precomputed_path),
+)
 
 
 ##
 
 
-subset = RNG.choice(len(sdata["molecule_baysor"]), 10000, replace=False)
+subset = RNG.choice(len(sdata["molecule_baysor"]), 100, replace=False)
 
 print(sdata["molecule_baysor"].columns)
 subset_df = sdata["molecule_baysor"].compute().iloc[subset]
@@ -120,6 +121,7 @@ subset_df = subset_df[
         "layer",
     ]
 ]
+
 sdata["molecule_baysor"] = sd.models.PointsModel.parse(
     make_dtypes_compatible_with_precomputed_annotations(
         subset_df,
@@ -131,7 +133,7 @@ sdata["molecule_baysor"] = sd.models.PointsModel.parse(
 # TODO: temporary workaround: raster data converted to precomputed expresses units in nm
 #  therefore let's multiply the points by 1000
 for ax in ["x", "y", "z"]:
-    sdata["molecule_baysor"][ax] = sdata["molecule_baysor"][ax] * 1000
+    sdata["molecule_baysor"][ax] = sdata["molecule_baysor"][ax] * 1000 + RNG.random()
 
 
 ##
@@ -162,7 +164,7 @@ from_spatialdata_points_to_precomputed_points(
     sdata["molecule_baysor"],
     precomputed_path=precomputed_path,
     points_name="molecule_baysor",
-    limit=1000,
+    limit=10,
     # limit=500,
 )
 print(f"conversion of points: {time.time() - start}")

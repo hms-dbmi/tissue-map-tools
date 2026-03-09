@@ -721,19 +721,19 @@ def test_compute_spatial_index(tmp_path: Path) -> None:
         xyz=positions, kd_tree=None, limit=3, starting_grid_shape=(1, 1, 1)
     )
     # two spatial levels expected
-    assert len(grid) == 2
+    assert len(grid) == 3
 
     # level 0 should have a single chunk, with 3 points
     level0 = grid[0]
     assert len(level0.populated_cells) == 1
-    assert len(next(iter(level0.populated_cells.values()))) == 3
+    assert len(next(iter(level0.populated_cells.values()))) == 2
 
     # level 1 should have 3 chunks, with respectively 3, 3, 2 points (=1 empty chunk)
     level1 = grid[1]
     # the empty chunk is not included in populated_cells
-    assert len(level1.populated_cells) == 3
+    assert len(level1.populated_cells) == 4
     counts = sorted(len(v) for v in level1.populated_cells.values())
-    assert counts == [2, 3, 3]
+    assert counts == [1, 1, 1, 3]
 
 
 def test_write_read_spatial_index_from_pandas(tmp_path: Path) -> None:

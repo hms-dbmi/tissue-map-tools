@@ -12,6 +12,7 @@ from pydantic import (
     confloat,
 )
 from tissue_map_tools.data_model.sharded import ShardingSpecification
+from tissue_map_tools.config import PRINT_DEBUG, VISUAL_DEBUG
 from pathlib import PurePosixPath
 import re
 import struct
@@ -24,11 +25,11 @@ from numpy.random import default_rng
 import itertools
 from numpy.typing import NDArray
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 RNG = default_rng(42)
-
-PRINT_DEBUG = True
-VISUAL_DEBUG = False
 
 ValidNumericNDArray = (
     NDArray[np.uint8]
@@ -201,7 +202,7 @@ class AnnotationInfo(BaseModel):
             if unit not in si_units:
                 raise ValueError(
                     f"Unit '{unit}' for dimension '{key}' is not supported. Only the "
-                    f"following combinations of SI prefixes and suffixes are allowed: prefixes: {SI_PREFIXES}; suffixes: {SI_PREFIXES} (e.g. 'um')."
+                    f"following combinations of SI prefixes and suffixes are allowed: prefixes: {SI_PREFIXES}; suffixes: {SI_SUFFIXES} (e.g. 'um')."
                 )
             validated[key] = (scale, unit)
         return validated
@@ -980,15 +981,13 @@ def compute_spatial_index(
                 f"and chunk size {grid_level.chunk_size}. Remaining points: {len(remaining_indices)}"
             )
 
-        # main logic
-        # if PRINT_DEBUG:
-        #     print("Active cells: ", grid_level.cells)
+        # Pass 1: gather remaining indices per cell
+        indices_per_cell: dict[tuple[int, ...], list[int]] = {}
         for i, j, k in grid_level.iter_cells():
-            # calculate the centroid of the grid cell
             centroid = grid_level.centroid((i, j, k))
 
             # find points in the grid cell
-            # this filter points by a radius r, but we have different values per axis,
+            # this filters points by a radius r, but we have different values per axis,
             # so we proceed with manual filtering on the result from the kDTree query
             indices = kd_tree.query_ball_point(
                 centroid, r=grid_level.chunk_size.max().item() / 2 + eps, p=np.inf
@@ -1006,34 +1005,41 @@ def compute_spatial_index(
             if discarded > 0:
                 # TODO: **possible bug!** This message is not printed while I would
                 #  expect that the kDTree query would sometimes return more points than
-                #  the mask would allow (this should happend when chunk_size has
+                #  the mask would allow (this should happen when chunk_size has
                 #  different dimensions)
-                # let's keep this print active until we address the comment above
-                if PRINT_DEBUG or True:
-                    print(
-                        f"-----------------> {discarded} points where filtered out of"
-                        f" {len(indices)}"
-                    )
+                logger.warning(
+                    f"{discarded} points were filtered out of {len(indices)} "
+                    f"during spatial index computation"
+                )
             indices = np.array(indices)[mask].tolist()
 
-            # filter out points that are not in the grid cell because they have been
-            # previously emitted
-            indices = [i for i in indices if i in remaining_indices]
+            # filter out points that have been previously emitted
+            indices = [idx for idx in indices if idx in remaining_indices]
 
             if len(indices) > 0:
-                if len(indices) <= limit:
-                    emitted = indices
-                    RNG.shuffle(emitted)
-                else:
-                    # TODO: BIG BUG! see here:
-                    # https://github.com/google/neuroglancer/issues/227#issuecomment-916384909
-                    emitted = RNG.choice(indices, size=limit, replace=False)
-                if PRINT_DEBUG:
-                    print(
-                        f"Emitting {len(emitted)} points for grid cell ({i}, {j}, {k})"
-                    )
-                grid_level.populated_cells[(i, j, k)] = emitted
-                remaining_indices.difference_update(emitted)
+                indices_per_cell[(i, j, k)] = indices
+
+        # Pass 2: compute a single global sampling probability from the densest
+        # cell, and apply it uniformly to all cells. This preserves relative
+        # density across cells: e.g. a cell with 10x more points will emit ~10x more
+        # annotations, rather than being clamped to the same `limit`.
+        # See https://github.com/google/neuroglancer/issues/227#issuecomment-916384909
+        if indices_per_cell:
+            max_count = max(len(v) for v in indices_per_cell.values())
+            p = min(1.0, limit / max_count)
+
+            for cell, indices in indices_per_cell.items():
+                indices_arr = np.array(indices)
+                keep = RNG.random(len(indices)) < p
+                emitted = indices_arr[keep].tolist()
+                # Neuroglancer subsamples by taking a prefix of the stored list,
+                # so we shuffle to ensure the prefix is spatially representative.
+                RNG.shuffle(emitted)
+                if len(emitted) > 0:
+                    if PRINT_DEBUG:
+                        print(f"Emitting {len(emitted)} points for grid cell {cell}")
+                    grid_level.populated_cells[cell] = emitted
+                    remaining_indices.difference_update(emitted)
 
         if VISUAL_DEBUG:
             import matplotlib.pyplot as plt

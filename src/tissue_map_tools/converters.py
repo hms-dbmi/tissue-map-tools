@@ -11,9 +11,8 @@ from dask.dataframe import DataFrame as DaskDataFrame
 from numpy.random import default_rng
 import pandas as pd
 import json
-from spatialdata._docs import docstring_parameter
 
-
+from tissue_map_tools.utils import docstring_parameter
 from tissue_map_tools.data_model.annotations import (
     AnnotationInfo,
     AnnotationProperty,
