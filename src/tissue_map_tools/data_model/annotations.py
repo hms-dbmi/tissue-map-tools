@@ -629,9 +629,26 @@ def write_annotation_id_index(
         If sharding is specified in the annotation info.
     """
     if info.by_id.sharding is not None:
-        raise NotImplementedError(
-            "Sharded annotation ID index writing is not implemented."
-        )
+        from tissue_map_tools.data_model.shard_utils import write_shard_files
+
+        shard_data: dict[int, bytes] = {}
+        for annotation_id, (
+            positions,
+            properties,
+            relationships,
+        ) in annotations.items():
+            encoded_data = (
+                encode_positions_and_properties_and_relationships_via_single_annotation(
+                    info=info,
+                    positions_values=positions,
+                    properties_values=properties,
+                    relationships_values=relationships,
+                )
+            )
+            shard_data[annotation_id] = encoded_data
+        shard_dir = root_path / info.by_id.key
+        write_shard_files(shard_dir, shard_data, info.by_id.sharding)
+        return
 
     index_dir = root_path / info.by_id.key
     index_dir.mkdir(parents=True, exist_ok=True)
@@ -676,9 +693,25 @@ def read_annotation_id_index(
         If the annotation ID index directory does not exist.
     """
     if info.by_id.sharding is not None:
-        raise NotImplementedError(
-            "Sharded annotation ID index reading is not implemented."
-        )
+        from tissue_map_tools.data_model.shard_utils import read_shard_data
+
+        shard_dir = root_path / info.by_id.key
+        if not shard_dir.is_dir():
+            raise FileNotFoundError(
+                f"Annotation ID index directory '{shard_dir}' does not exist."
+            )
+        raw_data = read_shard_data(shard_dir, info.by_id.sharding)
+        annotations: dict[
+            int, tuple[list[float], dict[str, Any], dict[str, list[int]]]
+        ] = {}
+        for annotation_id, encoded_data in raw_data.items():
+            decoded_data = (
+                decode_positions_and_properties_and_relationships_via_single_annotation(
+                    data=encoded_data, info=info
+                )
+            )
+            annotations[annotation_id] = decoded_data
+        return annotations
 
     index_dir = root_path / info.by_id.key
     if not index_dir.is_dir():
@@ -1166,10 +1199,24 @@ def write_spatial_index(
             f"Spatial level with key '{spatial_key}' not found in annotation info."
         )
     if annotation_spatial_level.sharding is not None:
-        raise NotImplementedError(
-            f"Sharded spatial index writing for relationship '{spatial_key}' is not "
-            f"implemented."
+        from tissue_map_tools.data_model.shard_utils import (
+            chunk_name_to_morton_code,
+            write_shard_files,
         )
+
+        shard_data: dict[int, bytes] = {}
+        for chunk_name, annotations in annotations_by_spatial_chunk.items():
+            encoded_data = encode_positions_and_properties_via_multiple_annotation(
+                info=info,
+                annotations=annotations,
+            )
+            morton_code = chunk_name_to_morton_code(
+                chunk_name, annotation_spatial_level.grid_shape
+            )
+            shard_data[morton_code] = encoded_data
+        shard_dir = root_path / annotation_spatial_level.key
+        write_shard_files(shard_dir, shard_data, annotation_spatial_level.sharding)
+        return
 
     index_dir = root_path / annotation_spatial_level.key
     index_dir.mkdir(parents=True, exist_ok=True)
@@ -1213,14 +1260,47 @@ def read_spatial_index(
         properties
             Additional properties or attributes associated with the annotation
     """
+    # Find the spatial level for this key
+    annotation_spatial_level: AnnotationSpatialLevel | None = None
+    for spatial in info.spatial:
+        if spatial.key == spatial_key:
+            annotation_spatial_level = spatial
+            break
+
+    if (
+        annotation_spatial_level is not None
+        and annotation_spatial_level.sharding is not None
+    ):
+        from tissue_map_tools.data_model.shard_utils import (
+            morton_code_to_chunk_name,
+            read_shard_data,
+        )
+
+        shard_dir = root_path / spatial_key
+        if not shard_dir.is_dir():
+            raise FileNotFoundError(
+                f"Spatial index directory '{shard_dir}' does not exist."
+            )
+        raw_data = read_shard_data(shard_dir, annotation_spatial_level.sharding)
+        annotations_by_spatial_chunk: dict[
+            str, list[tuple[int, list[float], dict[str, Any]]]
+        ] = {}
+        for morton_code, encoded_data in raw_data.items():
+            chunk_name = morton_code_to_chunk_name(
+                morton_code, annotation_spatial_level.grid_shape
+            )
+            decoded_data = decode_positions_and_properties_via_multiple_annotation(
+                info=info, data=encoded_data
+            )
+            annotations_by_spatial_chunk[chunk_name] = decoded_data
+        return annotations_by_spatial_chunk
+
     index_dir = root_path / spatial_key
     if not index_dir.is_dir():
         raise FileNotFoundError(
-            f"Spaital index directory '{index_dir}' does not exist."
+            f"Spatial index directory '{index_dir}' does not exist."
         )
-    annotations_by_spatial_chunk: dict[
-        str, list[tuple[int, list[float], dict[str, Any]]]
-    ] = {}
+    annotations_by_spatial_chunk = {}
     for fpath in index_dir.iterdir():
         # assuming 3D data
         if fpath.is_file():
