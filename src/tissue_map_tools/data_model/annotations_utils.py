@@ -64,15 +64,26 @@ def make_dtypes_compatible_with_precomputed_annotations(
         df[column] = df[column].astype("category")
 
     for column in df.select_dtypes(include=["bool"]).columns:
-        df[column] = df[column].astype("int8")
+        df[column] = df[column].astype("uint8")
 
-    converted_dtypes = {"float64", "int64", "object", "string", "bool", "category"}
-    if len(dtypes.difference(converted_dtypes)) > 0:
+    # Dtypes that are already natively supported by the precomputed annotations format
+    natively_supported = {
+        np.dtype(d).name  # type: ignore[call-overload]
+        for d in SUPPORTED_DTYPES
+        if d not in ["category", "object"]
+    }
+    natively_supported.add("category")
+    natively_supported.add("object")
+    # Dtypes that this function knows how to convert
+    convertible_dtypes = {"float64", "int64", "object", "string", "bool"}
+    known_dtypes = natively_supported | convertible_dtypes
+    unknown = dtypes.difference(known_dtypes)
+    if len(unknown) > 0:
         warnings.warn(
-            f"Some columns have dtypes {dtypes.difference(converted_dtypes)} that are not "
-            "converted to compatible types. Excluding these columns from the DataFrame."
+            f"Some columns have dtypes {unknown} that are not "
+            "supported or convertible. Excluding these columns from the DataFrame."
         )
-        df = df.select_dtypes(include=converted_dtypes)
+        df = df[[col for col in df.columns if df[col].dtype.name not in unknown]]
 
     # Reorder columns to match the original order
     old_column_order = [col for col in old_column_order if col in df.columns]
