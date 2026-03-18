@@ -27,7 +27,7 @@ def tmt_spec_to_cv_spec(spec: TMTShardingSpecification) -> CVShardingSpecificati
 def compute_annotation_shard_params(num_keys: int) -> TMTShardingSpecification:
     """Compute shard parameters for annotation data and return a TMT ShardingSpecification."""
     if num_keys <= 0:
-        num_keys = 1
+        raise ValueError(f"num_keys must be positive, got {num_keys}")
     shard_bits, minishard_bits, preshift_bits = compute_shard_params_for_hashed(
         num_keys
     )
@@ -66,7 +66,20 @@ def write_shard_files(
     data: dict[int, bytes],
     tmt_spec: TMTShardingSpecification,
 ) -> None:
-    """Write shard files to disk from a {key: binary} dict."""
+    """Write shard files to disk from a {key: binary} dict.
+
+    Uses synthesize_shard_files (plural) instead of synthesize_shard_file. The docs from
+    cloud-volume explain that the former is appropriate for meshes and skeletons, but it
+    is appropriate also here:
+    1. All data for a given index level is passed at once, so each shard file
+       produced is complete — no risk of partial shards from split calls.
+    2. Files are named by decimal shard number (cloudvolume convention), instead of
+       using a zero-padded hex value (neuroglancer specs). For reading,
+       read_shard_data uses cloudvolume's ShardReader which follows the same
+       convention, so the naming is internally consistent. Also, the cloudvolume shards
+       are recognized by neuroglancer, and the decimal naming is already used for meshes
+       and volumes.
+    """
     cv_spec = tmt_spec_to_cv_spec(tmt_spec)
     shard_dir.mkdir(parents=True, exist_ok=True)
     shard_files = synthesize_shard_files(cv_spec, data)

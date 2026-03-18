@@ -152,6 +152,10 @@ Consider a shard with `minishard_bits=1` (2 minishards), `data_encoding="raw"`,
 
 **Section 1 — Shard Index** (2 minishards × 16 bytes = 32 bytes):
 
+Note: the `start=9` below for minishard 0 equals the total size of Section 2 (2+3+4 = 9 bytes of
+chunk data), since Section 3 begins immediately after and offsets are relative to the
+end of the shard index.
+
 ```
 Minishard 0: start=9, end=9+48=57   (index for 2 chunks = 24×2 = 48 bytes)
 Minishard 1: start=57, end=57+24=81 (index for 1 chunk  = 24×1 = 24 bytes)
@@ -169,12 +173,12 @@ Byte 37: b"AAAA" (chunk key=5,  minishard 1)
 
 Total data = 9 bytes.
 
-**Section 3 — Minishard Indices** (starts at byte 41):
+**Section 3 — Minishard Indices** (starts at byte 41 = 2 \* 16 + 9):
 
 ```
 Minishard 0 index (bytes 41-88):
   Row 0 (keys):    [10, 2]       (delta: 10, 12-10)
-  Row 1 (offsets): [0,  0]       (delta: 0, gap=0 since chunks are contiguous)
+  Row 1 (offsets): [0,  0]       (delta: 0, then gap=0)
   Row 2 (sizes):   [2,  3]
 
 Minishard 1 index (bytes 89-112):
@@ -182,6 +186,15 @@ Minishard 1 index (bytes 89-112):
   Row 1 (offsets): [5]           (offset from end of shard index)
   Row 2 (sizes):   [4]
 ```
+
+`gap_i = offset_i - (offset_{i-1} + size_{i-1})` measures dead bytes between two
+consecutive chunks of the **same minishard** in Section 2. It is always 0 in practice
+because writers pack chunks back-to-back. The delta encoding exists to support it in
+principle (e.g. alignment padding), but no known implementation produces non-zero gaps.
+
+The `start` of minishard i+1 always equals the `end` of minishard i in the shard
+index (Section 1), because minishard indices in Section 3 are also concatenated with
+no gaps — each one starts exactly where the previous one ended.
 
 ## Compressed Morton Codes (for spatial index sharding)
 
@@ -192,13 +205,23 @@ coordinates:
 For grid position `(x, y, z)` with grid shape `(gx, gy, gz)`:
 
 - Compute bits needed per dim: `bits_x = ceil(log2(gx))`, etc.
-- Interleave bits in round-robin order across dimensions that still have
-  remaining bits, from least significant to most significant.
+- Interleave bits by cycling through dimensions x→y→z→x→y→z→… (round-robin),
+  skipping a dimension once it has no remaining bits, from least significant
+  to most significant bit position.
 
-Example: grid shape `(4, 4, 2)`, position `(2, 3, 1)`:
+Example: grid shape `(gx=4, gy=4, gz=2)`, position `(x=2, y=3, z=1)`:
 
-- `bits_x=2, bits_y=2, bits_z=1`
-- Interleaving: `z₀ y₀ x₀ y₁ x₁` → bits `1 1 0 1 1` → Morton code = 27
+- `bits_x=2, bits_y=2, bits_z=1`; x=2 (10₂), y=3 (11₂), z=1 (1₂)
+- Interleaving cycles x→y→z per round (dimension order 0→1→2), from LSB upward:
+
+```
+Round 1 (all dims have bits left): bit0=x₀=0, bit1=y₀=1, bit2=z₀=1
+Round 2 (z exhausted, skipped):    bit3=x₁=1, bit4=y₁=1
+```
+
+- Result: `0 1 1 1 1` → 0 + 2 + 4 + 8 + 16 = Morton code = 30
+
+z is skipped in round 2 because gz=2 requires only 1 bit, so z₁ does not exist.
 
 The inverse operation (Morton code → grid position) reverses this process to
 recover the original `"x_y_z"` chunk name when reading sharded spatial data.

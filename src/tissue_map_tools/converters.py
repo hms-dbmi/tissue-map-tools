@@ -26,6 +26,9 @@ from tissue_map_tools.data_model.annotations import (
 from tissue_map_tools.data_model.annotations_utils import (
     from_pandas_column_to_annotation_property,
 )
+from tissue_map_tools.data_model.shard_utils import (
+    compute_annotation_shard_params,
+)
 
 RNG = default_rng(42)
 
@@ -347,10 +350,6 @@ def from_spatialdata_points_to_precomputed_points(
     #  to be nanometers
     by_id_sharding = None
     if sharded:
-        from tissue_map_tools.data_model.shard_utils import (
-            compute_annotation_shard_params,
-        )
-
         by_id_spec = compute_annotation_shard_params(len(annotations_by_index_id))
         by_id_sharding = by_id_spec.model_dump(by_alias=True, exclude_none=True)
 

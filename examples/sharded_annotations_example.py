@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import tissue_map_tools.data_model.annotations as ann_module
 from tissue_map_tools.converters import from_spatialdata_points_to_precomputed_points
 from tissue_map_tools.data_model.annotations_utils import parse_annotations
 
@@ -36,6 +37,7 @@ def main():
 
         # Write unsharded
         unsharded_path = tmpdir / "unsharded"
+        ann_module.RNG = np.random.default_rng(0)
         from_spatialdata_points_to_precomputed_points(
             points=df,
             precomputed_path=unsharded_path,
@@ -45,8 +47,9 @@ def main():
             sharded=False,
         )
 
-        # Write sharded
+        # Write sharded (same seed → identical spatial structure → comparable output)
         sharded_path = tmpdir / "sharded"
+        ann_module.RNG = np.random.default_rng(0)
         from_spatialdata_points_to_precomputed_points(
             points=df,
             precomputed_path=sharded_path,
@@ -68,25 +71,18 @@ def main():
         print(f"Sharded total files: {len(sharded_files)}")
         print(f"  of which .shard files: {len(shard_files)}")
 
-        # Read back both
+        # Read back both. Same seed → identical spatial structure → identical
+        # iteration order, so we can compare the dataframes
         df_unsharded = parse_annotations(data_path=unsharded_path)
         df_sharded = parse_annotations(data_path=sharded_path)
 
-        # Compare
-        sort_cols = ["intensity", "x", "y", "z"]
-        drop_cols = ["__spatial_index__", "__chunk_key__"]
-        df_u = (
-            df_unsharded.sort_values(by=sort_cols)
-            .drop(drop_cols, axis=1)
-            .reset_index(drop=True)
+        # check_names=False: ignores the .name attribute of the index (can differ
+        #   between sharded/unsharded without affecting values).
+        # check_index_type=False: annotation IDs are stored as uint64 on disk but
+        #   the unsharded index may come back as int64; values are equal either way.
+        pd.testing.assert_frame_equal(
+            df_unsharded, df_sharded, check_names=False, check_index_type=False
         )
-        df_s = (
-            df_sharded.sort_values(by=sort_cols)
-            .drop(drop_cols, axis=1)
-            .reset_index(drop=True)
-        )
-
-        pd.testing.assert_frame_equal(df_u, df_s, check_names=False)
         print("Sharded and unsharded annotations are identical!")
 
 

@@ -2,7 +2,22 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tissue_map_tools.data_model.sharded import ShardingSpecification
+import tissue_map_tools.data_model.annotations as ann_module
+from tests.data_model.test_annotations import (
+    example_info,
+    example_annotations,
+    example_sharding,
+    assert_dict_of_ids_positions_properties_equal,
+)
+from tissue_map_tools.converters import from_spatialdata_points_to_precomputed_points
+from tissue_map_tools.data_model.annotations import (
+    AnnotationInfo,
+    write_annotation_id_index,
+    read_annotation_id_index,
+    write_spatial_index,
+    read_spatial_index,
+)
+from tissue_map_tools.data_model.annotations_utils import parse_annotations
 from tissue_map_tools.data_model.shard_utils import (
     tmt_spec_to_cv_spec,
     compute_annotation_shard_params,
@@ -11,21 +26,7 @@ from tissue_map_tools.data_model.shard_utils import (
     write_shard_files,
     read_shard_data,
 )
-from tissue_map_tools.data_model.annotations import (
-    AnnotationInfo,
-    write_annotation_id_index,
-    read_annotation_id_index,
-    write_spatial_index,
-    read_spatial_index,
-)
-from tissue_map_tools.converters import from_spatialdata_points_to_precomputed_points
-from tissue_map_tools.data_model.annotations_utils import parse_annotations
-from tests.data_model.test_annotations import (
-    example_info,
-    example_annotations,
-    example_sharding,
-    assert_dict_of_ids_positions_properties_equal,
-)
+from tissue_map_tools.data_model.sharded import ShardingSpecification
 
 
 def test_tmt_spec_to_cv_spec():
@@ -50,15 +51,25 @@ def test_tmt_spec_to_cv_spec():
     assert cv_spec.data_encoding == "raw"
 
 
-@pytest.mark.parametrize("num_keys", [1, 10, 100, 1000, 100000])
-def test_compute_annotation_shard_params(num_keys):
+@pytest.mark.parametrize(
+    "num_keys,expected_shard_bits,expected_minishard_bits",
+    [
+        # 0 bits means 1 shard, 1 minishard
+        (1000, 0, 0),
+        # comes from how compute_shard_params_for_hashed() operates in cloud-volume
+        (int(1e7), 4, 9),
+    ],
+)
+def test_compute_annotation_shard_params(
+    num_keys, expected_shard_bits, expected_minishard_bits
+):
     """Returns valid params for various annotation counts."""
     spec = compute_annotation_shard_params(num_keys)
     assert spec.type == "neuroglancer_uint64_sharded_v1"
     assert spec.hash_function == "murmurhash3_x86_128"
-    assert spec.minishard_bits >= 0
-    assert spec.shard_bits >= 0
-    assert spec.preshift_bits >= 0
+    assert spec.shard_bits == expected_shard_bits
+    assert spec.minishard_bits == expected_minishard_bits
+    assert spec.preshift_bits == 0
 
 
 @pytest.mark.parametrize(
@@ -90,9 +101,7 @@ def test_write_read_shard_files(tmp_path):
     assert len(shard_files) > 0
 
     recovered = read_shard_data(tmp_path / "shards", spec)
-    assert set(recovered.keys()) == set(data.keys())
-    for key in data:
-        assert recovered[key] == data[key]
+    assert data == recovered
 
 
 def test_write_read_annotation_id_index_sharded(tmp_path):
@@ -137,7 +146,7 @@ def test_write_read_annotation_id_index_sharded(tmp_path):
 
         assert original_pos == read_pos
         assert original_props["color"] == read_props["color"]
-        assert np.allclose(original_props["confidence"], read_props["confidence"])
+        assert np.isclose(original_props["confidence"], read_props["confidence"])
         assert original_props["cell_type"] == read_props["cell_type"]
         assert original_rels == read_rels
 
@@ -178,7 +187,8 @@ def test_write_read_spatial_index_sharded(tmp_path):
 
 
 def test_end_to_end_sharded_pipeline(tmp_path):
-    """Full converter pipeline with sharded=True, then parse_annotations() reads back same data."""
+    """Full converter pipeline: write sharded and unsharded, compare both against
+    the original df and against each other."""
     rng = np.random.default_rng(42)
     n = 100
     df = pd.DataFrame(
@@ -190,35 +200,40 @@ def test_end_to_end_sharded_pipeline(tmp_path):
             "categorical": pd.Categorical(rng.choice(["a", "b", "c"], n)),
         }
     )
+    kwargs = dict(points=df, limit=30, starting_grid_shape=(1, 1, 1))
 
+    ann_module.RNG = np.random.default_rng(0)
     from_spatialdata_points_to_precomputed_points(
-        points=df,
-        precomputed_path=tmp_path,
-        points_name="test_sharded",
-        limit=30,
-        starting_grid_shape=(1, 1, 1),
+        **kwargs,
+        precomputed_path=tmp_path / "unsharded",
+        points_name="test",
+        sharded=False,
+    )
+    ann_module.RNG = np.random.default_rng(0)
+    from_spatialdata_points_to_precomputed_points(
+        **kwargs,
+        precomputed_path=tmp_path / "sharded",
+        points_name="test",
         sharded=True,
     )
 
-    # Verify .shard files exist
-    shard_files = list((tmp_path / "test_sharded").rglob("*.shard"))
-    assert len(shard_files) > 0
+    assert len(list((tmp_path / "sharded" / "test").rglob("*.shard"))) > 0
 
-    # Read back and deduplicate (annotations can appear in multiple spatial levels)
-    df_parsed = parse_annotations(data_path=tmp_path)
+    df_unsharded = parse_annotations(data_path=tmp_path / "unsharded")
+    df_sharded = parse_annotations(data_path=tmp_path / "sharded")
+
+    # Same seed → identical spatial structure → identical iteration order.
+    pd.testing.assert_frame_equal(df_unsharded, df_sharded)
+
+    # Both match the original df after sorting by annotation ID (spatial-chunk
+    # order ≠ insertion order) and dropping provenance metadata columns.
     drop_cols = ["__spatial_index__", "__chunk_key__"]
-    df_parsed = df_parsed.drop(drop_cols, axis=1)
-    # Deduplicate by index (annotation id) — keep first occurrence
-    df_parsed = df_parsed[~df_parsed.index.duplicated(keep="first")]
-
-    assert len(df_parsed) == n
-
-    # Verify all original values are present
-    sort_cols = ["int32_val", "x", "y", "z"]
-    df_parsed_sorted = df_parsed.sort_values(by=sort_cols).reset_index(drop=True)
-    df_sorted = df.sort_values(by=sort_cols).reset_index(drop=True)
-
-    pd.testing.assert_frame_equal(df_sorted, df_parsed_sorted, check_names=False)
+    # name of index and dtype of index is allowed to be different
+    cmp_kwargs = dict(check_names=False, check_index_type=False)
+    for df_parsed in (df_unsharded, df_sharded):
+        df_parsed = df_parsed.sort_index().drop(drop_cols, axis=1)
+        assert len(df_parsed) == n
+        pd.testing.assert_frame_equal(df, df_parsed, **cmp_kwargs)
 
 
 def test_empty_spatial_chunks_sharded(tmp_path):
