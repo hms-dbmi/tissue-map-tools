@@ -26,6 +26,9 @@ from tissue_map_tools.data_model.annotations import (
 from tissue_map_tools.data_model.annotations_utils import (
     from_pandas_column_to_annotation_property,
 )
+from tissue_map_tools.data_model.shard_utils import (
+    compute_annotation_shard_params,
+)
 
 RNG = default_rng(42)
 
@@ -265,6 +268,7 @@ def from_spatialdata_points_to_precomputed_points(
     points_name: str | None = None,
     limit: int = 50000,
     starting_grid_shape: tuple[int, ...] | None = None,
+    sharded: bool = False,
 ) -> None:
     """
 
@@ -344,6 +348,11 @@ def from_spatialdata_points_to_precomputed_points(
     #  transformation
     # TODO: the dimensions belows need to be adjusted, here we are assuming the units
     #  to be nanometers
+    by_id_sharding = None
+    if sharded:
+        by_id_spec = compute_annotation_shard_params(len(annotations_by_index_id))
+        by_id_sharding = by_id_spec.model_dump(by_alias=True, exclude_none=True)
+
     spatial: list[dict[str, Any]] = []
     kw = {
         "@type": "neuroglancer_annotations_v1",
@@ -353,13 +362,20 @@ def from_spatialdata_points_to_precomputed_points(
         "annotation_type": "POINT",
         "properties": properties,
         "relationships": relationships,
-        "by_id": {"key": "by_id", "sharding": None},
+        "by_id": {"key": "by_id", "sharding": by_id_sharding},
         "spatial": spatial,
     }
     for grid_level in grid.values():
+        spatial_sharding = None
+        if sharded:
+            import math as _math
+
+            total_grid_cells = _math.prod(grid_level.grid_shape)
+            spatial_spec = compute_annotation_shard_params(total_grid_cells)
+            spatial_sharding = spatial_spec.model_dump(by_alias=True, exclude_none=True)
         spatial_item = {
             "key": f"spatial{grid_level.level}",
-            "sharding": None,
+            "sharding": spatial_sharding,
             "grid_shape": grid_level.grid_shape,
             "chunk_size": grid_level.chunk_size.tolist(),
             "limit": grid_level.limit,

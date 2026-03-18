@@ -83,10 +83,11 @@ sdata_small = sd.bounding_box_query(
 # )
 
 ##
-from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-    raster=sdata["membrane_labels"],
-    precomputed_path=str(precomputed_path),
-)
+# uncomment this to generate the raster data
+# from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+#     raster=sdata["membrane_labels"],
+#     precomputed_path=str(precomputed_path),
+# )
 
 
 ##
@@ -95,8 +96,8 @@ from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
 subset = RNG.choice(len(sdata["molecule_baysor"]), 100, replace=False)
 
 print(sdata["molecule_baysor"].columns)
-subset_df = sdata["molecule_baysor"].compute().iloc[subset]
-# subset_df = sdata["molecule_baysor"].compute()
+# subset_df = sdata["molecule_baysor"].compute().iloc[subset]
+subset_df = sdata["molecule_baysor"].compute()
 subset_df = subset_df[
     [
         # working
@@ -164,7 +165,8 @@ from_spatialdata_points_to_precomputed_points(
     sdata["molecule_baysor"],
     precomputed_path=precomputed_path,
     points_name="molecule_baysor",
-    limit=10,
+    limit=10000,
     # limit=500,
+    sharded=True,
 )
 print(f"conversion of points: {time.time() - start}")
