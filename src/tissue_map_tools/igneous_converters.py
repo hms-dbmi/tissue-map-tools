@@ -153,6 +153,7 @@ def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
     is_labels: bool | None = None,
     multiscale: bool = True,
     sharded_raster: bool = True,
+    sharded_mesh: bool = True,
     mesh_name: str | None = None,
     units_factor: int = DEFAULT_UNITS_FACTOR,
     object_ids: list[int] | None = None,
@@ -181,6 +182,7 @@ def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
         nlod=nlod,
         min_chunk_size=min_chunk_size,
         parallel=parallel,
+        sharded=sharded_mesh,
     )
 
 
@@ -189,6 +191,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
     precomputed_path: str | Path,
     multiscale: bool = True,
     sharded_raster: bool = True,
+    sharded_mesh: bool = True,
     mesh_name: str | None = None,
     units_factor: int = DEFAULT_UNITS_FACTOR,
     object_ids: list[int] | None = None,
@@ -198,7 +201,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
     parallel: int | bool = True,
 ) -> None:
     """
-    Convert a SpatialData raster element to a sharded precomputed volume with meshes.
+    Convert a SpatialData raster element to a precomputed volume with meshes.
 
     Parameters
     ----------
@@ -211,6 +214,10 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         Whether to create a multiscale volume.
     sharded_raster
         Whether to convert the raster to a sharded format.
+    sharded_mesh
+        Whether to produce sharded meshes. When True, meshes are stored in the
+        neuroglancer_uint64_sharded_v1 format. When False, each mesh fragment is
+        stored as a separate file (unsharded format).
     mesh_name
         Name of the output mesh directory. If None, the mesh will be stored using the
         default name assigned by igneous.
@@ -276,6 +283,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         nlod=nlod,
         min_chunk_size=min_chunk_size,
         parallel=parallel,
+        sharded=sharded_mesh,
     )
 
 
