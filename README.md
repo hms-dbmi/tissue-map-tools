@@ -1,23 +1,45 @@
-<h1>
 <p align="center">
-  <br>3D Tissue Map Tools
-</h1>
-<p align="center">
-    <span>a python toolkit to create 3D Tissue Maps</span>
+  <img src="docs/assets/teaser.png" alt="tissue-map-tools" width="520"/>
 </p>
 
-🚧The library is still under development, breaking changes may occur! 🚧
+<h1 align="center">tissue-map-tools</h1>
 
-`tissue-map-tools` is a python toolkit to create scalable 3D Tissue Maps from 3D OME-NGFF volumes and segmentation masks, and 3D SpatialData objects.
+<p align="center">
+  A Python toolkit for scalable 3D spatial biology visualization and analysis<br/>
+  <i>Bridges SpatialData and Neuroglancer Precomputed to enable interactive exploration of 3D tissue maps</i>
+</p>
 
-- **Fast** ⚡, building upon scalable and adaptive data formats like OME-NGFF and the Neuroglancer Precomputed Format, the mesh representation is fast and reliable.
-- **Interactive**, users can view results of the toolkit from the browser using [Vitessce](https://vitessce.io).
-- **Adaptive**, users can adapt parameters like the sharding, chunking and spatial indexing factors to their needs.
-- **Reproducible**, our pipeline is fully deterministic delivering the same results for every run.
+<p align="center">
+  <a href="https://pypi.org/project/tissue-map-tools/"><img src="https://img.shields.io/pypi/v/tissue-map-tools" alt="PyPI"/></a>
+  <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/license-BSD%203--Clause-blue" alt="License"/></a>
+  <a href="https://scverse.zulipchat.com/"><img src="https://img.shields.io/badge/chat-scverse%20Zulip-brightgreen" alt="Zulip"/></a>
+</p>
 
-## Contact us
+> **Note:** The library is under active development — breaking changes may occur.
 
-Feedback or collaborations are very welcome! Please open a GitHub issue or contact us via direct message in the [scverse Zulip](https://scverse.zulipchat.com/).
+---
+
+## Overview
+
+Biological processes occur in a spatial, three-dimensional context. Yet most spatial biology tools focus on 2D tissue sections, missing critical information about cellular relationships across the third dimension.
+
+**tissue-map-tools** bridges two complementary standards to provide intuitive, scalable 3D workflows:
+
+- [**SpatialData**](https://spatialdata.scverse.org/) — annotated data format for spatial biology (scverse)
+- [**Neuroglancer Precomputed**](https://github.com/google/neuroglancer/tree/master/src/datasource/precomputed) — scalable format for large 3D segmentations and point clouds (connectomics)
+
+It enables interactive visualization of 3D images, segmentation masks, meshes, and point clouds via [Neuroglancer](https://neuroglancer-demo.appspot.com/), [napari](https://napari.org/), and [Vitessce](https://vitessce.io/) — all from a single shareable URL.
+
+|                           |                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| **Fast** ⚡               | Built on OME-NGFF and Neuroglancer Precomputed with adaptive sharding            |
+| **Interactive** 🖥️        | Browser-based 3D visualization via Vitessce and Neuroglancer; desktop via napari |
+| **Scalable** 📦           | Multi-resolution pyramids and sharded storage for large datasets                 |
+| **Adaptive** ⚙️           | Configurable sharding, chunking, spatial indexing, and level-of-detail           |
+| **Reproducible** 🔁       | Fully deterministic pipeline                                                     |
+| **scverse-integrated** 🧬 | Native SpatialData support                                                       |
+
+---
 
 ## Install
 
@@ -25,55 +47,144 @@ Feedback or collaborations are very welcome! Please open a GitHub issue or conta
 pip install tissue-map-tools
 ```
 
-## Usage
+Mesh generation from segmentation masks requires `igneous-pipeline` (GPL-3.0 licensed — see [License](#license)):
 
-Please see the `examples` folder.
+```sh
+pip install tissue-map-tools igneous-pipeline
+```
+
+---
+
+## Quick Start
+
+### Convert a segmentation mask → Precomputed volume + meshes
+
+```python
+import spatialdata as sd
+from tissue_map_tools.igneous_converters import (
+    from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes,
+)
+
+sdata = sd.read_zarr("my_dataset.zarr")
+
+from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+    raster=sdata["cell_labels"],
+    precomputed_path="./out/precomputed",
+    multiscale=True,
+    sharded_raster=True,
+    sharded_mesh=True,
+    nlod=2,
+)
+```
+
+### Convert molecular transcripts → Precomputed annotations
+
+```python
+from tissue_map_tools.converters import from_spatialdata_points_to_precomputed_points
+from tissue_map_tools.data_model.annotations_utils import (
+    make_dtypes_compatible_with_precomputed_annotations,
+)
+
+points_df = make_dtypes_compatible_with_precomputed_annotations(sdata["molecules"])
+
+from_spatialdata_points_to_precomputed_points(
+    points=points_df,
+    precomputed_path="./out/precomputed",
+    points_name="molecules",
+    limit=10000,
+    sharded=True,
+)
+```
+
+### Visualize in Neuroglancer
+
+```python
+from tissue_map_tools.view import view_precomputed_in_neuroglancer
+
+viewer = view_precomputed_in_neuroglancer(data_path="./out/precomputed")
+print(viewer.get_viewer_url())  # share this URL
+```
+
+### Visualize in napari
+
+```python
+from tissue_map_tools.view import view_precomputed_in_napari
+
+view_precomputed_in_napari(
+    data_path="./out/precomputed",
+    show_meshes=True,
+    show_points=True,
+)
+```
+
+---
+
+## Documentation
+
+Full documentation is available in [`docs/index.md`](docs/index.md), including:
+
+- [Architecture overview](docs/index.md#architecture)
+- [Full API reference](docs/index.md#api-reference)
+- [End-to-end examples](docs/index.md#examples) (MERFISH mouse ileum, CycIF skin cancer)
+- [Integration guides](docs/index.md#integration-guide) for SpatialData, Neuroglancer, napari, and Vitessce
+- [Configuration reference](docs/index.md#configuration)
+- [Shard binary format specification](docs/shard_binary_format.md)
+
+---
+
+## Examples
+
+The `examples/` folder contains complete end-to-end workflows:
+
+| Example                          | Description                                                                |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| `merfish_mouse_ileum/`           | Full pipeline: raw MERFISH data → SpatialData → Precomputed → Neuroglancer |
+| `invasive/`                      | OME-TIFF segmentation → sharded meshes                                     |
+| `melanoma/`                      | CycIF skin cancer dataset → sharded meshes                                 |
+| `sharded_annotations_example.py` | Standalone point annotation conversion with sharding                       |
+
+---
 
 ## License
 
-The project is licensed under BSD 3-Clause License. Please note that one of the optional dependencies, `igneous-pipeline`, is licensed under GPL-3.0. This implies that if you use `igneous-pipeline` as part of your workflow, you are required to comply with both the terms of the BSD 3-Clause License and the GPL-3.0 license.
+tissue-map-tools is licensed under the **BSD 3-Clause License**.
 
-The code from `igneous-pipeline` is used for certain meshing operations and exposed in a detached module `igneous_converter`. If GPL-3.0 is not compatible with your use case, you can still use the rest of the `tissue-map-tools` package without any restrictions, and replace the meshing functionality with your own implementation.
+The optional `igneous-pipeline` dependency is licensed under **GPL-3.0**. If you use the `igneous_converters` module, your combined work must comply with GPL-3.0. All other functionality (raster conversion, annotations, visualization) is available under BSD 3-Clause without this constraint.
+
+---
+
+## Contact
+
+Feedback and collaborations are very welcome! Please open a [GitHub issue](https://github.com/hms-dbmi/tissue-map-tools/issues) or reach out on [scverse Zulip](https://scverse.zulipchat.com/).
+
+---
 
 ## Development
 
-Editable install
-
 ```sh
-uv venv
-source .venv/bin/activate
-# install with specific dependency groups
-uv sync --group examples --group dev --group test
-# note: calling `uv sync` is equivalent to the above since
-# `tool.uv.default-groups = ["examples", "dev", "test"]` in `pyproject.toml`
+git clone https://github.com/hms-dbmi/tissue-map-tools
+cd tissue-map-tools
+uv venv && source .venv/bin/activate
+uv sync  # installs examples, dev, and test groups
 ```
 
-Adding/removing packages
+Adding/removing packages:
 
 ```sh
-uv add <package_name>
-uv remove <package_name>
-# to add/remove to a group
-uv add --group <group_name> <package_name>
-# shortcut to add/remove to the dev group
-uv add --dev <package_name>
+uv add <package>
+uv remove <package>
+uv add --group dev <package>
 ```
 
-Building the package for distribution
+Building for distribution:
 
 ```sh
 uv build
 ```
 
-Using `pre-commit`.
+Using pre-commit:
 
 ```sh
-# install
 pre-commit install
-
-# pre-commit are run automatically on commit; you can run on request with
 pre-commit run --all-files
-
-# to commit without running pre-commit hooks
-git commit --no-verify
 ```
