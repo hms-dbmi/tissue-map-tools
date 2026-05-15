@@ -303,32 +303,18 @@ def from_spatialdata_points_to_precomputed_points(
 
     ##
     # compute annotations_by_index_id, used in write_annotation_id_index()
-    annotations_by_index_id: dict[
-        int, tuple[list[float], dict[str, Any], dict[str, list[int]]]
-    ] = {}
-    # convert all categorical columns to codes and store them in a separate dataframe
-    points_categorical = points.select_dtypes(include=["category"])
-    for col in points_categorical.columns:
-        points_categorical[col] = points[col].cat.codes
-
-    # important: neuroglancer doesn't know about the df.index, it just knows about
-    # the "iloc". Also, in iterrows() we do not consider the index, using an enumerate
-    # instead
     # TODO: actually, we should probably have the id of the points equal to the index,
     #  instead of resetting it to a contiguous range
-    for i, row in enumerate(points.itertuples()):
-        coords = [getattr(row, col) for col in spatial_columns]
-        row_dict = row._asdict()
-        properties_values = {}
-        for k, v in row_dict.items():
-            if k in spatial_columns or k == "Index":
-                continue
-            if points[k].dtype == "category":
-                k_index = points_categorical.columns.get_loc(k)
-                v = points_categorical.iloc[i, k_index]
-            properties_values[k] = v
-        relationships_values: dict[str, list[int]] = {}
-        annotations_by_index_id[i] = (coords, properties_values, relationships_values)
+    prop_columns = [col for col in points.columns if col not in spatial_columns]
+    prop_df = points[prop_columns].copy()
+    for col in prop_columns:
+        if points[col].dtype == "category":
+            prop_df[col] = points[col].cat.codes
+    prop_records: list[dict[str, Any]] = prop_df.to_dict("records")
+    coords_list: list[list[float]] = points[spatial_columns].to_numpy().tolist()
+    annotations_by_index_id: dict[
+        int, tuple[list[float], dict[str, Any], dict[str, list[int]]]
+    ] = {i: (coords_list[i], prop_records[i], {}) for i in range(len(points))}
 
     ##
     # compute annotations_by_relationship_id, used in write_related_object_id_index()

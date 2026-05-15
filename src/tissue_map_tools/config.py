@@ -3,3 +3,4 @@
 # to help catch issues early. Set to False to suppress verbose output.
 PRINT_DEBUG = True
 VISUAL_DEBUG = False
+VERIFY_ENCODING = False
