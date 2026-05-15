@@ -18,7 +18,7 @@ from tissue_map_tools.data_model.shard_utils import (
     chunk_name_to_morton_code,
     morton_code_to_chunk_name,
 )
-from tissue_map_tools.config import PRINT_DEBUG, VISUAL_DEBUG
+from tissue_map_tools.config import PRINT_DEBUG, VISUAL_DEBUG, VERIFY_ENCODING
 from pathlib import PurePosixPath
 import re
 import struct
@@ -325,18 +325,18 @@ def encode_positions_and_properties_via_single_annotation(
         else:
             raise ValueError(f"Unknown property type: {prop.type}")
         buf += packed
-        # safety check
-        if prop.type in ["rgb", "rgba"]:
-            unpacked = struct.unpack_from("<" + str(len(value)) + "B", packed)
-            value_check = value
-        else:
-            unpacked = struct.unpack_from(fmt, packed)
-            value_check = (value,)
-        if not np.allclose(unpacked, value_check):
-            raise ValueError(
-                f"Value mismatch for property '{prop.id}': original {value}, unpacked "
-                f"{unpacked}. Please report this bug."
-            )
+        if VERIFY_ENCODING:
+            if prop.type in ["rgb", "rgba"]:
+                unpacked = struct.unpack_from("<" + str(len(value)) + "B", packed)
+                value_check = value
+            else:
+                unpacked = struct.unpack_from(fmt, packed)
+                value_check = (value,)
+            if not np.allclose(unpacked, value_check):
+                raise ValueError(
+                    f"Value mismatch for property '{prop.id}': original {value}, unpacked "
+                    f"{unpacked}. Please report this bug."
+                )
 
     # 3. Pad to 4-byte boundary
     pad = (4 - (len(buf) % 4)) % 4
