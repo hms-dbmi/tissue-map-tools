@@ -78,6 +78,115 @@ def view_precomputed_in_neuroglancer(
     return viewer
 
 
+def view_precomputed_in_vitessce(
+    data_path: str,
+    layer_name: str | None = None,
+    show_meshes: bool = True,
+    show_annotations: bool = True,
+    feature_index_prop: str | None = None,
+    point_index_prop: str | None = None,
+    port: int = 10001,
+    host: str = "localhost",
+    schema_version: str = "1.0.17",
+    name: str = "Precomputed data",
+    host_local_data: bool = True,
+):
+    """
+    Build a Vitessce config for a precomputed dataset (segmentation + meshes,
+    plus any point annotations found alongside it), and return it as a widget.
+
+    Parameters
+    ----------
+    data_path
+        Path to the root of the precomputed data (local directory or cloud path
+        supported by CloudVolume).
+    layer_name
+        Name of the segmentation scale/layer to visualize. Defaults to the first
+        scale key found in the CloudVolume info file.
+    show_meshes
+        Whether to add the segmentation + meshes as an `obsSegmentations.ng-precomputed`
+        file.
+    show_annotations
+        Whether to look for and add any point annotation layers found in the
+        precomputed data as `obsPoints.ng-annotations` files.
+    feature_index_prop
+        Name of the Neuroglancer annotation property to use for feature-based
+        coloring (e.g. a categorical property like 'phenotype'). Passed through
+        to every annotation layer found. Optional.
+    point_index_prop
+        Name of the Neuroglancer annotation property to use as the point/object
+        ID (e.g. 'cell_id'). Passed through to every annotation layer found.
+        Optional.
+    port
+        Local port used to serve the precomputed data over HTTP via
+        `CloudVolume.viewer`.
+    host
+        Hostname to build file URLs against. Defaults to 'localhost'.
+    schema_version
+        Vitessce config schema version.
+    name
+        Name of the Vitessce config.
+    host_local_data
+        Whether to actually start serving the data locally via
+        `CloudVolume.viewer`. Set to False if the data is already being served
+        elsewhere (e.g. a remote bucket) and `data_path` already points to a
+        reachable URL.
+
+    Returns
+    -------
+    A Vitessce widget (via `VitessceConfig.widget()`), ready to display in a
+    Jupyter notebook.
+
+    Notes
+    -----
+    Requires the `vitessce` package (`pip install vitessce[all]` for widget and
+    export support). The two Neuroglancer-specific file types used here
+    ('obsSegmentations.ng-precomputed' and 'obsPoints.ng-annotations') are not
+    yet exposed as named constants in vitessce-python's FileType enum, so they
+    are passed as raw strings, which `add_file`/`add_view` support directly.
+    """
+    from vitessce import VitessceConfig
+
+    cv = CloudVolume(cloudpath=data_path)
+    layer_name = layer_name if layer_name is not None else cv.info["scales"][0]["key"]
+    base_url = f"http://{host}:{port}"
+
+    vc = VitessceConfig(schema_version=schema_version, name=name)
+    dataset = vc.add_dataset(name)
+
+    if show_meshes:
+        dataset.add_file(
+            file_type="obsSegmentations.ng-precomputed",
+            url=f"{base_url}/{layer_name}",
+        )
+
+    if show_annotations:
+        annotation_options = {}
+        if feature_index_prop is not None:
+            annotation_options["featureIndexProp"] = feature_index_prop
+        if point_index_prop is not None:
+            annotation_options["pointIndexProp"] = point_index_prop
+
+        annotations_names = find_annotations_from_cloud_volume(cv)
+        for annotation_name in annotations_names:
+            dataset.add_file(
+                file_type="obsPoints.ng-annotations",
+                url=f"{base_url}/{annotation_name}",
+                options=annotation_options if annotation_options else None,
+            )
+
+    ng_view = vc.add_view("neuroglancer", dataset=dataset)
+    lc_view = vc.add_view("layerControllerBeta", dataset=dataset)
+    vc.layout(ng_view | lc_view)
+
+    if host_local_data:
+        # NOTE: like view_precomputed_in_neuroglancer, this blocks/serves in the
+        # current process. Run this in a notebook cell alongside the widget.
+        cv.viewer(port=port)
+
+    return vc.widget()
+
+
 def view_precomputed_in_napari(
     data_path: str,
     layer_name: str | None = None,

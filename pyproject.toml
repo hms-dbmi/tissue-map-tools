@@ -50,6 +50,8 @@ examples = [
     "devtools>=0.12.2",
     "pyqt5>=5.15.11",
     "fiona>=1.10.1",
+    "setuptools>=83.0.0",
+    "zarr<3",
 ]
 dev = [
     "pre-commit>=4.2.0",
