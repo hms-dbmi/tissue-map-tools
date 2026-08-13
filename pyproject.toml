@@ -33,6 +33,7 @@ dependencies = [
     "xarray>=2024.9.0",
     "vedo>=2025.5.4",
     "xmltodict>=1.0.2",
+    "vitessce>=3.8.4",
 ]
 
 [dependency-groups]
