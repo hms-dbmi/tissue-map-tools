@@ -255,25 +255,6 @@ def view_precomputed_in_vitessce(
     if camera_presets is not None:
         lc_view.set_props(cameraPresets=camera_presets)
 
-    # -------------------------------------------------------------------
-    # Cross-view synchronization: link_views_by_dict()
-    # -------------------------------------------------------------------
-    # Required unconditionally -- without this, spatialRenderingMode defaults
-    # to "2D" and mesh geometry will not render, regardless of segments/colors.
-    # vc.link_views_by_dict(
-    #     [ng_view, lc_view],
-    #     {
-    #         "spatialRenderingMode": "3D",
-    #         "spatialZoom": 0,
-    #         "spatialTargetX": 0,
-    #         "spatialTargetY": 0,
-    #         "spatialTargetZ": 0,
-    #         "spatialRotationX": 0,
-    #         "spatialRotationY": 0,
-    #         "spatialRotationOrbit": 0,
-    #     },
-    #     meta=False,
-    # )
 
     if show_meshes:
         vc.link_views_by_dict(
@@ -315,7 +296,7 @@ def view_precomputed_in_vitessce(
             vc.web_app(port=port)
             input("Server running -- press Enter to stop...\n")
             return vc
-
+        # TODO: Need to remove when the segment updates are in production
         return vc.widget(custom_js_url="http://localhost:9001/packages/main/dev/dist/index.js")
 
     return vc

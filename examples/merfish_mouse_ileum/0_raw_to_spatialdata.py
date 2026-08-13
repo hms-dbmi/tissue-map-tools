@@ -8,7 +8,7 @@ import subprocess
 import hashlib
 import spatialdata as sd
 from dask_image.imread import imread
-# import pandas as pd
+import pandas as pd
 from anndata import AnnData
 import geopandas as gpd
 from shapely import Point, Polygon
@@ -17,7 +17,7 @@ import dask.array as da
 from spatialdata.models import points_dask_dataframe_to_geopandas
 from geopandas import sjoin
 from geopandas import GeoDataFrame
-import pandas as pd
+
 pd.set_option("future.infer_string", False)
 # download the data: https://datadryad.org/dataset/doi:10.5061/dryad.jm63xsjb2
 out_path = Path(__file__).parent.parent.parent / "out"
