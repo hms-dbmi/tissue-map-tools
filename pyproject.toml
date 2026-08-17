@@ -32,7 +32,7 @@ examples = [
     "neuroglancer>=2.41.2",
     "napari-spatialdata>=0.5.5",
     "spatialdata>=0.7.0",
-    "napari>=0.6.0",
+    "napari>=0.6.1",
     "pyqt5>=5.15.11",
     "setuptools>=83.0.0",
 ]
