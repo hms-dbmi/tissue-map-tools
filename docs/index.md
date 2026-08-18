@@ -51,7 +51,7 @@ Mesh generation from segmentation masks requires the `igneous-pipeline` dependen
 pip install tissue-map-tools igneous-pipeline
 ```
 
-> If GPL-3.0 is incompatible with your use case, all other functionality (raster conversion, point annotations, visualization) remains available without it.
+> If GPL-3.0 is incompatible with your use case, all other functionality (unsharded raster conversion, point annotations, visualization) remains available without it.
 
 ### Development Install
 
@@ -94,7 +94,7 @@ tissue-map-tools organizes its functionality into three layers:
 | Module                            | Description                                                                   |
 | --------------------------------- | ----------------------------------------------------------------------------- |
 | `converters.py`                   | Core conversion: OME-Zarr/SpatialData → Precomputed volumes and annotations   |
-| `igneous_converters.py`           | Mesh generation and multiscale pyramid creation (requires `igneous-pipeline`) |
+| `igneous_converters.py`           | Mesh generation and multiscale pyramid creation (requires `igneous-pipeline` (GPL-3.0).) |
 | `view.py`                         | Visualization via Neuroglancer and napari                                     |
 | `data_model/annotations.py`       | Annotation encoding/decoding, spatial indexing, index I/O                     |
 | `data_model/annotations_utils.py` | dtype compatibility, DataFrame ↔ annotation property conversions             |
@@ -122,7 +122,7 @@ sdata = sd.read_zarr("my_dataset.zarr")
 
 # Convert segmentation labels → Precomputed volume + Draco meshes
 from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-    raster=sdata["cell_labels"],     # Labels3DModel element
+    raster=sdata["cell_labels"],     # SpatialData labels element
     precomputed_path="./out/precomputed",
     multiscale=True,
     sharded_raster=True,
@@ -210,7 +210,7 @@ from_ome_zarr_04_raster_to_precomputed_raster(
 
 #### `from_spatialdata_raster_to_precomputed_raster`
 
-Converts a SpatialData `Image3DModel` or `Labels3DModel` element to Precomputed format.
+Converts a SpatialData image or labels element to Precomputed format.
 
 ```python
 from tissue_map_tools.converters import from_spatialdata_raster_to_precomputed_raster
@@ -231,7 +231,7 @@ from_spatialdata_raster_to_precomputed_raster(
 
 #### `from_spatialdata_points_to_precomputed_points`
 
-Converts a points DataFrame (SpatialData `PointsModel` or plain pandas/dask) to Neuroglancer precomputed annotations with a multi-level spatial index.
+Converts a points DataFrame (SpatialData points element or plain pandas/dask) to Neuroglancer precomputed annotations with a multi-level spatial index.
 
 ```python
 from tissue_map_tools.converters import from_spatialdata_points_to_precomputed_points
@@ -657,11 +657,11 @@ from_spatialdata_points_to_precomputed_points(
 
 tissue-map-tools consumes SpatialData elements directly:
 
-| SpatialData Element | Conversion Function                                               |
+| SpatialData.model | Conversion Function                                               |
 | ------------------- | ----------------------------------------------------------------- |
-| `Image3DModel`      | `from_spatialdata_raster_to_precomputed_raster`                   |
-| `Labels3DModel`     | `from_spatialdata_raster_to_precomputed_raster` + mesh generation |
-| `PointsModel`       | `from_spatialdata_points_to_precomputed_points`                   |
+| `3D image`      | `from_spatialdata_raster_to_precomputed_raster`                   |
+| `3D labels`     | `from_spatialdata_raster_to_precomputed_raster` + mesh generation |
+| `3D points`       | `from_spatialdata_points_to_precomputed_points`                   |
 
 **Coordinate transformations:** Only diagonal (scale-only) transformations are currently supported. Translations embedded in transformations are not applied to the output volume (tracked as a known limitation).
 
@@ -812,7 +812,7 @@ The optional `igneous-pipeline` dependency is licensed under **GPL-3.0**. If you
 Feedback and contributions are welcome! Please:
 
 - Open a [GitHub issue](https://github.com/hms-dbmi/tissue-map-tools/issues) for bugs or feature requests
-- Join the discussion on [scverse Zulip](https://scverse.zulipchat.com/)
+- Join [this dedicated channel](https://scverse.zulipchat.com/#narrow/channel/545206-tissue-map-tools-dev) or join the discussion on [scverse Zulip](https://scverse.zulipchat.com/)
 
 ---
 

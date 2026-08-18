@@ -149,7 +149,7 @@ The `examples/` folder contains complete end-to-end workflows:
 
 tissue-map-tools is licensed under the **BSD 3-Clause License**.
 
-The optional `igneous-pipeline` dependency is licensed under **GPL-3.0**. If you use the `igneous_converters` module, your combined work must comply with GPL-3.0. All other functionality (raster conversion, annotations, visualization) is available under BSD 3-Clause without this constraint.
+The optional `igneous-pipeline` dependency is licensed under **GPL-3.0**. If you use the `igneous_converters` module, your combined work must comply with GPL-3.0. All other functionality (unsharded raster conversion, annotations, visualization) is available under BSD 3-Clause without this constraint.
 
 ---
 
