@@ -34,7 +34,7 @@ examples = [
     "spatialdata>=0.7.0",
     "napari>=0.6.1",
     "pyqt5>=5.15.11",
-    "setuptools>=83.0.0",
+    "setuptools<81",
 ]
 dev = [
     "pre-commit>=4.2.0",
@@ -44,7 +44,7 @@ test = [
 ]
 
 [tool.uv]
-default-groups = ["examples", "dev", "test"]
+default-groups = ["examples", "dev", "test", "extra"]
 
 [build-system]
 requires = ["hatchling"]
