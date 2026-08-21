@@ -7,31 +7,16 @@ authors = [
     { name = "Eric Moerth", email = "ericmoerth@g.harvard.edu" },
     { name = "Luca Marconato", email = "luca.marconato@embl.de" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "zmesh>=1.0.0",
     "trimesh",
     "pyfqmr",
-    "anywidget>=0.9.18",
-    "connected-components-3d>=3.23.0",
-    "fast-simplification>=0.1.9",
-    "ipywidgets>=8.1.6",
     "jupyterlab>=3",
-    "meshio>=5.3.5",
     "ome-types>=0.6.0",
     "ome-zarr>=0.10.3",
-    "open3d>=0.19.0",
-    "pymeshfix>=0.17.0",
-    "pyvista[all,jupyter]>=0.44.2",
-    "scikit-learn>=1.6.1",
     "tifffile>=2025.3.30",
-    "trame-jupyter-extension>=2.1.4",
-    "watchfiles>=1.0.5",
-    "zarr>=2.18.7",
     "cloud-volume>=12.6.3",
-    "fastremap>=1.17.7",
     "xarray>=2024.9.0",
-    "vedo>=2025.5.4",
     "xmltodict>=1.0.2",
     "vitessce>=3.8.4",
 ]
@@ -46,13 +31,10 @@ examples = [
     "dirhash>=0.5.0",
     "neuroglancer>=2.41.2",
     "napari-spatialdata>=0.5.5",
-    "spatialdata>=0.4.0",
+    "spatialdata>=0.7.0",
     "napari>=0.6.1",
-    "devtools>=0.12.2",
     "pyqt5>=5.15.11",
-    "fiona>=1.10.1",
-    "setuptools>=83.0.0",
-    "zarr<3",
+    "setuptools<81",
 ]
 dev = [
     "pre-commit>=4.2.0",
@@ -62,7 +44,7 @@ test = [
 ]
 
 [tool.uv]
-default-groups = ["examples", "dev", "test"]
+default-groups = ["examples", "dev", "test", "extra"]
 
 [build-system]
 requires = ["hatchling"]
