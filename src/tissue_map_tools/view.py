@@ -10,6 +10,7 @@ from cloudvolume import CloudVolume
 from numpy.random import default_rng
 import numpy as np
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
+from tissue_map_tools.utils import is_running_in_notebook
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 from tissue_map_tools.data_model.annotations_utils import parse_annotations
 from vitessce import (
@@ -100,7 +101,7 @@ def view_precomputed_in_vitessce(
     schema_version: str = "1.0.17",
     name: str = "Precomputed data",
     host_local_data: bool = True,
-    use_web_app: bool = False,
+    use_web_app: bool = None,
 ):
     """
     Build a Vitessce config for a precomputed dataset (segmentation + meshes,
@@ -166,12 +167,11 @@ def view_precomputed_in_vitessce(
         elsewhere (e.g. a remote bucket) and data_path already points to a
         reachable URL.
     use_web_app
-        If True (and host_local_data=True), open the live vitessce.io web app
-        in a real browser tab via VitessceConfig.web_app(), and block on
-        input() to keep the local server thread alive. Use this for plain
-        script execution outside Jupyter, where .widget() has nothing to
-        render into. If False (default), return a Jupyter widget instead.
-
+        If None (default), auto-detected: True when running outside a
+        Jupyter notebook (plain script or terminal), False when running
+        inside one. Set explicitly to override this — e.g. force True in a
+        notebook if you specifically want the vitessce.io browser tab
+        instead of the inline widget.
     Returns
     -------
     A Vitessce widget (via VitessceConfig.widget()) if use_web_app=False, or
@@ -286,6 +286,8 @@ def view_precomputed_in_vitessce(
     # Serve locally + return
     # -------------------------------------------------------------------
     if host_local_data:
+        if use_web_app is None:
+            use_web_app = not is_running_in_notebook()
         server_thread = threading.Thread(
             target=cv.viewer, kwargs={"port": port}, daemon=True
         )
