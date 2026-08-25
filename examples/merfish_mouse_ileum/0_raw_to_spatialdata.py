@@ -18,7 +18,6 @@ from spatialdata.models import points_dask_dataframe_to_geopandas
 from geopandas import sjoin
 from geopandas import GeoDataFrame
 
-pd.set_option("future.infer_string", False)
 # download the data: https://datadryad.org/dataset/doi:10.5061/dryad.jm63xsjb2
 out_path = Path(__file__).parent.parent.parent / "out"
 download_path = out_path / "data_release_baysor_merfish_gut.zip"
@@ -209,12 +208,11 @@ adata = sd.models.TableModel.parse(
 ##
 adata.obs = pd.merge(
     adata.obs,
-    # Was getting error here
-    df_cell_stats.drop(columns=["x", "y"]),
+    df_cell_stats.drop(columns=["x", "y"], axis=1),
     left_on="cell_id",
     right_on="cell",
     how="left",
-).drop(columns=["cell"])
+).drop(columns=["cell"], axis=1)
 ##
 xy = df_cell_stats[["x", "y"]].values
 radii = (df_cell_stats["area"].to_numpy() / np.pi) ** 0.5

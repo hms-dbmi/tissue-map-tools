@@ -187,7 +187,7 @@ def _get_axes_cloudvolume(
 def _transpose_dask_data_for_cloudvolume(
     dask_data: dask.array.Array, axes: list[str]
 ) -> dask.array.Array:
-    # cloud volume wants (x, y, z, c) axes order
+    # cloud volume wants x, y, z(, c) axes order
     axes_index = {ax: i for i, ax in enumerate(axes)}
     axes_cloudvolume = _get_axes_cloudvolume(axes)
     return dask_data.transpose(*[axes_index[ax] for ax in axes_cloudvolume])
