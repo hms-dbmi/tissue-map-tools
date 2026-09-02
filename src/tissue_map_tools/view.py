@@ -2,6 +2,7 @@ import webbrowser
 
 from pathlib import Path
 import threading
+import colorsys
 import time
 import warnings
 import napari
@@ -17,6 +18,8 @@ from vitessce import (
     VitessceConfig,
     CoordinationLevel as CL,
     get_initial_coordination_scope_prefix,
+    make_ids_csv_data_url, 
+    make_colors_csv_data_url,
 )
 RNG = default_rng(42)
 
@@ -198,21 +201,44 @@ def view_precomputed_in_vitessce(
                     root_data_path=data_path,
                     data_path=Path(data_path) / mesh_subpath,
                 )
-
-        options = {}
-        if resolved_ids:
-            options["segments"] = resolved_ids
-        if segment_colors:
-            options["segmentColors"] = {str(k): v for k, v in segment_colors.items()}
-
+        resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
         file_def = {
             "file_type": "obsSegmentations.ng-precomputed",
             "url": base_url,
             "coordination_values": {"fileUid": "segmentation"},
         }
-        if options:
-            file_def["options"] = options
+
         dataset.add_file(**file_def)
+        # Vitessce adds segments to Neuroglancer either via an obsSets csv file or obsFeatureMatrix.csv / obsColors.csv 
+        if resolved_ids:
+        # Generate a default color per segment if the caller didn't
+        # provide one, so segments are always selectable/visible even
+        # without explicit colors.
+            if segment_colors is None:
+                segment_colors = {
+                    seg_id: "#{:02x}{:02x}{:02x}".format(
+                        *[int(c * 255) for c in colorsys.hsv_to_rgb(i / len(resolved_ids), 0.65, 0.9)]
+                    )
+                    for i, seg_id in enumerate(resolved_ids)
+                }
+
+            dataset.add_file(
+                file_type="obsFeatureMatrix.csv",
+                url=make_ids_csv_data_url(resolved_ids),
+                coordination_values={
+                    "obsType": obs_type,
+                    "featureType": "feature",
+                    "featureValueType": "value",
+                },
+            )
+            dataset.add_file(
+                file_type="obsColors.csv",
+                url=make_colors_csv_data_url(
+                    {i: segment_colors.get(i, "#ffffff") for i in resolved_ids}
+                ),
+                options={"obsIndex": "id", "obsColors": "color"},
+                coordination_values={"obsType": obs_type},
+            )
 
     # -------------------------------------------------------------------
     # Point annotations: file `options` (feature/color props) +
@@ -255,8 +281,19 @@ def view_precomputed_in_vitessce(
     if camera_presets is not None:
         lc_view.set_props(cameraPresets=camera_presets)
 
-
+    print("segments", resolved_ids , segment_colors)
     if show_meshes:
+        segmentation_channel = {
+            "obsType": obs_type,
+            "spatialChannelVisible": True,
+        }
+        if resolved_ids and segment_colors:
+            segmentation_channel.update({
+                "featureType": "feature",
+                "featureValueType": "value",
+                "obsColorEncoding": "obsColors",
+            })
+
         vc.link_views_by_dict(
             [ng_view, lc_view],
             {
@@ -267,14 +304,7 @@ def view_precomputed_in_vitessce(
                             "spatialLayerOpacity": 1,
                             "spatialTargetResolution": None,
                             "spatialLayerVisible": True,
-                            "segmentationChannel": CL(
-                                [
-                                    {
-                                        "obsType": obs_type,
-                                        "spatialChannelVisible": True,
-                                    }
-                                ]
-                            ),
+                            "segmentationChannel": CL([segmentation_channel]),
                         }
                     ]
                 ),
@@ -298,8 +328,7 @@ def view_precomputed_in_vitessce(
             vc.web_app(port=port)
             input("Server running -- press Enter to stop...\n")
             return vc
-        # TODO: Need to remove when the segment updates are in production
-        return vc.widget(custom_js_url="http://localhost:9001/packages/main/dev/dist/index.js")
+        return vc.widget()
 
     return vc
 
