@@ -98,6 +98,8 @@ def view_precomputed_in_vitessce(
     segment_colors: dict[str, str] | None = None,
     obs_type_segmentation: str = "cell",
     obs_type_annotation: str = "cell",
+    annotation_feature_type: str ="gene",
+    obsColorEncoding: str="obsColors"
     initial_camera_state: dict | None = None,
     camera_presets: list[dict] | None = None,
     show_axis_lines: bool | None = None,
@@ -137,6 +139,8 @@ def view_precomputed_in_vitessce(
         Defaults to "cell".
     obs_type_annotation
         The obsType used in coordination by the annotation files. Defaults to "cell".
+    obsColorEncoding
+        How to color the observations
     initial_camera_state
         Optional dict with 'position', 'projectionScale', and
         'projectionOrientation' keys. Passed to the neuroglancer view via
@@ -242,14 +246,15 @@ def view_precomputed_in_vitessce(
             ))
                 
 
-
-
     # -------------------------------------------------------------------
     # Point annotations: file `options` (feature/color props) +
     # `coordination_values` (fileUid, obsType)
     # -------------------------------------------------------------------
     if show_annotations:
+        annotation_file_uids = []
         for annotation_name in find_annotations_from_cloud_volume(cv):
+            file_uid = f"annotation_{annotation_name}"
+            annotation_file_uids.append(file_uid)
             annotation_path = f"{data_path}/{annotation_name}" if host_local_data else None
             annotation_url = None if host_local_data else f"{data_path}/{annotation_name}"
             dataset.add_object(
@@ -257,8 +262,10 @@ def view_precomputed_in_vitessce(
                     data_path=annotation_path,
                     data_url=annotation_url,
                     coordination_values={
-                        "fileUid": f"annotation_{annotation_name}",
-                        "obsType": obs_type,
+                        "fileUid": file_uid,
+                        # TODO: add variants here, centroids vs. molecules
+                        "obsType": obs_type_annotation,
+                        "featureType": annotation_feature_type
                     },
                     options=annotation_options,
                 )
@@ -285,7 +292,6 @@ def view_precomputed_in_vitessce(
     if camera_presets is not None:
         lc_view.set_props(cameraPresets=camera_presets)
 
-    print("segments", resolved_ids , segment_colors)
     if show_meshes:
         segmentation_channel = {
             "obsType": obs_type_segmentation,
@@ -295,7 +301,7 @@ def view_precomputed_in_vitessce(
             segmentation_channel.update({
                 "featureType": "feature",
                 "featureValueType": "value",
-                "obsColorEncoding": "obsColors",
+                "obsColorEncoding": obsColorEncoding,
             })
 
         vc.link_views_by_dict(
@@ -331,13 +337,36 @@ def view_precomputed_in_vitessce(
             meta=False,
         )
 
+    if annotation_file_uids:
+        vc.link_views_by_dict(
+            [ng_view, lc_view],
+            {
+                "pointLayer": CL([
+                    {
+                        "fileUid": file_uid,
+                        "obsType": obs_type_annotation,
+                        "spatialLayerOpacity": 1,
+                        "spatialLayerVisible": True,
+                        "spatialPointStrokeWidth": 0.2,
+                        "obsColorEncoding": "geneSelection",
+                        "featureValueColormap": "plasma",
+                        "spatialLayerLabel": annotation_name,
+                        "featureFilterMode": "featureSelection",
+                    }
+                    for file_uid, annotation_name in zip(
+                        annotation_file_uids, find_annotations_from_cloud_volume(cv)
+                    )
+                ]),
+            },
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsPoints"),
+        )
+
     # -------------------------------------------------------------------
     # Serve locally + return
     # -------------------------------------------------------------------
     if host_local_data:
         if use_web_app is None:
             use_web_app = not is_running_in_notebook()
-
         if use_web_app:
             vc.web_app(port=port)
             input("Server running -- press Enter to stop...\n")
