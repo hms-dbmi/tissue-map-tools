@@ -93,11 +93,11 @@ def view_precomputed_in_vitessce(
     show_annotations: bool = True,
     segments: list[int] | list[str] | None = None,
     segment_colors: dict[str, str] | None = None,
-    obs_type: str = "cell",
+    obs_type_segmentation: str = "cell",
+    obs_type_annotation: str = "cell",
     initial_camera_state: dict | None = None,
     camera_presets: list[dict] | None = None,
     show_axis_lines: bool | None = None,
-    mesh_load_projection_scale_threshold: float | None = None,
     annotation_options: dict | None = None,
     port: int = 10001,
     host: str = "localhost",
@@ -129,9 +129,11 @@ def view_precomputed_in_vitessce(
         Optional dict mapping segment ID (as a string) to a hex color, e.g.
         {"612": "#ccbb44"}. Passed via `options.segmentColors`. If not
         provided, Neuroglancer assigns default colors automatically.
-    obs_type
-        The obsType used in coordination for both the segmentation channel
-        and any annotation files. Defaults to "cell".
+    obs_type_segmentation
+        The obsType used in coordination for both the segmentation channel.
+        Defaults to "cell".
+    obs_type_annotation
+        The obsType used in coordination by the annotation files. Defaults to "cell".
     initial_camera_state
         Optional dict with 'position', 'projectionScale', and
         'projectionOrientation' keys. Passed to the neuroglancer view via
@@ -145,11 +147,6 @@ def view_precomputed_in_vitessce(
     show_axis_lines
         Optional bool passed to the neuroglancer view via
         set_props(showAxisLines=...).
-    mesh_load_projection_scale_threshold
-        Optional float passed to the neuroglancer view via
-        set_props(meshLoadProjectionScaleThreshold=...). Controls the maximum
-        projectionScale (i.e. how zoomed out the camera can be) at which
-        meshes still start loading.
     annotation_options
         Optional dict of extra `options` merged into every obsPoints.ng-annotations
         file added when show_annotations=True, e.g.
@@ -224,9 +221,9 @@ def view_precomputed_in_vitessce(
 
             dataset.add_file(
                 file_type="obsFeatureMatrix.csv",
-                url=make_ids_csv_data_url(resolved_ids),
+                url=make_ids_csv_data_url(resolved_ids, use_web_app),
                 coordination_values={
-                    "obsType": obs_type,
+                    "obsType": obs_type_segmentation,
                     "featureType": "feature",
                     "featureValueType": "value",
                 },
@@ -234,10 +231,10 @@ def view_precomputed_in_vitessce(
             dataset.add_file(
                 file_type="obsColors.csv",
                 url=make_colors_csv_data_url(
-                    {i: segment_colors.get(i, "#ffffff") for i in resolved_ids}
+                    {i: segment_colors.get(i, "#ffffff") for i in resolved_ids}, use_web_app
                 ),
                 options={"obsIndex": "id", "obsColors": "color"},
-                coordination_values={"obsType": obs_type},
+                coordination_values={"obsType": obs_type_segmentation},
             )
 
     # -------------------------------------------------------------------
@@ -251,7 +248,8 @@ def view_precomputed_in_vitessce(
                 "url": f"{base_url}/{annotation_name}",
                 "coordination_values": {
                     "fileUid": f"annotation_{annotation_name}",
-                    "obsType": obs_type,
+                    # TODO: Add  distinction between centroids and other annotations
+                    "obsType": obs_type_annotation,
                 },
             }
             if annotation_options:
@@ -273,8 +271,6 @@ def view_precomputed_in_vitessce(
         ng_props["initialNgCameraState"] = initial_camera_state
     if show_axis_lines is not None:
         ng_props["showAxisLines"] = show_axis_lines
-    if mesh_load_projection_scale_threshold is not None:
-        ng_props["meshLoadProjectionScaleThreshold"] = mesh_load_projection_scale_threshold
     if ng_props:
         ng_view.set_props(**ng_props)
 
@@ -284,7 +280,7 @@ def view_precomputed_in_vitessce(
     print("segments", resolved_ids , segment_colors)
     if show_meshes:
         segmentation_channel = {
-            "obsType": obs_type,
+            "obsType": obs_type_segmentation,
             "spatialChannelVisible": True,
         }
         if resolved_ids and segment_colors:
@@ -302,7 +298,6 @@ def view_precomputed_in_vitessce(
                         {
                             "fileUid": "segmentation",
                             "spatialLayerOpacity": 1,
-                            "spatialTargetResolution": None,
                             "spatialLayerVisible": True,
                             "segmentationChannel": CL([segmentation_channel]),
                         }
@@ -310,6 +305,22 @@ def view_precomputed_in_vitessce(
                 ),
             },
             scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
+        )
+
+        vc.link_views_by_dict(
+            [ng_view, lc_view],
+            {
+                "spatialRenderingMode": "3D",
+                "spatialZoom": 0,
+                "spatialTargetT": 0,
+                "spatialTargetX": 0,
+                "spatialTargetY": 0,
+                "spatialTargetZ": 0,
+                "spatialRotationX": 0,
+                "spatialRotationY": 0,
+                "spatialRotationOrbit": 0,
+            },
+            meta=False,
         )
 
     # -------------------------------------------------------------------
@@ -477,10 +488,10 @@ def view_precomputed_in_napari(
 
 if __name__ == "__main__":
     # fmt: off
-    # unique_labels = [
-    #     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-    #     22, 23, 24,
-    # ]
+    unique_labels = [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        22, 23, 24,
+    ]
     # fmt: on
     # viewer = view_precomputed_in_neuroglancer(
     #     data_path="../../out/20_1_gloms_precomputed",
@@ -511,7 +522,7 @@ if __name__ == "__main__":
     #     data_path="/Users/macbook/Desktop/moffitt_precomputed",
     #     mesh_ids=unique_labels,
     # )
-    viewer = view_precomputed_in_neuroglancer(
-        data_path="/Users/macbook/Desktop/moffitt_precomputed",
-        # mesh_ids=unique_labels,
-    )
+    # viewer = view_precomputed_in_neuroglancer(
+    #     data_path="/Users/macbook/Desktop/moffitt_precomputed",
+    #     # mesh_ids=unique_labels,
+    # )

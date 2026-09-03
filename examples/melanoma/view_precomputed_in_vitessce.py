@@ -17,11 +17,28 @@ if not precomputed_path.exists():
 view_precomputed_in_vitessce(
     data_path=str(precomputed_path),
     show_meshes=True,
-    show_annotations=True,
+    show_annotations=False,
     port=10001,
     host="localhost",
     name="Melanoma",
     host_local_data=True,
     segments=[612, 3351, 4328, 6531, 8446],
+    segment_colors = { 
+        612: '#d74242',
+      3351: '#b9d742',
+      4328: '#42d77d',
+      6531: '#427dd7',
+      8446: '#b942d7'
+    },
     use_web_app=True,
+    initial_camera_state={
+            "position": [49.5, 1000.5, 5209.5],
+            "projectionScale": 1024,
+            "projectionOrientation": [
+            -0.636204183101654,
+            -0.5028395652770996,
+            0.5443811416625977,
+            0.2145828753709793,
+        ],
+    }
 )
