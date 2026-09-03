@@ -20,6 +20,9 @@ from vitessce import (
     get_initial_coordination_scope_prefix,
     make_ids_csv_data_url, 
     make_colors_csv_data_url,
+    ObsSegmentationsNgPrecomputedWrapper,
+    ObsPointsNgAnnotationsWrapper,
+    CsvWrapper
 )
 RNG = default_rng(42)
 
@@ -199,13 +202,13 @@ def view_precomputed_in_vitessce(
                     data_path=Path(data_path) / mesh_subpath,
                 )
         resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
-        file_def = {
-            "file_type": "obsSegmentations.ng-precomputed",
-            "url": base_url,
-            "coordination_values": {"fileUid": "segmentation"},
-        }
-
-        dataset.add_file(**file_def)
+        dataset.add_object(
+            ObsSegmentationsNgPrecomputedWrapper(
+                data_path=data_path if host_local_data else None,
+                data_url=None if host_local_data else data_path,
+                coordination_values={"fileUid": "segmentation"},
+            )
+        )
         # Vitessce adds segments to Neuroglancer either via an obsSets csv file or obsFeatureMatrix.csv / obsColors.csv 
         if resolved_ids:
         # Generate a default color per segment if the caller didn't
@@ -219,23 +222,27 @@ def view_precomputed_in_vitessce(
                     for i, seg_id in enumerate(resolved_ids)
                 }
 
-            dataset.add_file(
-                file_type="obsFeatureMatrix.csv",
-                url=make_ids_csv_data_url(resolved_ids, use_web_app),
-                coordination_values={
-                    "obsType": obs_type_segmentation,
-                    "featureType": "feature",
-                    "featureValueType": "value",
-                },
-            )
-            dataset.add_file(
-                file_type="obsColors.csv",
-                url=make_colors_csv_data_url(
-                    {i: segment_colors.get(i, "#ffffff") for i in resolved_ids}, use_web_app
+            else:
+                segment_colors = {str(k): v for k, v in segment_colors.items()}
+
+            dataset.add_object(CsvWrapper(
+                csv_url=make_ids_csv_data_url(resolved_ids, use_web_app),
+                data_type='obsFeatureMatrix',
+                coordination_values={'obsType': obs_type_segmentation, 'featureType': 'feature', 'featureValueType': 'value'},
+            ))
+
+            dataset.add_object(CsvWrapper(
+                csv_url=make_colors_csv_data_url( 
+                    {i: segment_colors.get(i, "#ffffff") for i in resolved_ids}, 
+                    use_web_app
                 ),
-                options={"obsIndex": "id", "obsColors": "color"},
-                coordination_values={"obsType": obs_type_segmentation},
-            )
+                data_type='obsColors',
+                options={'obsIndex': 'id', 'obsColors': 'color'},
+                coordination_values={'obsType': obs_type_segmentation},
+            ))
+                
+
+
 
     # -------------------------------------------------------------------
     # Point annotations: file `options` (feature/color props) +
@@ -243,18 +250,19 @@ def view_precomputed_in_vitessce(
     # -------------------------------------------------------------------
     if show_annotations:
         for annotation_name in find_annotations_from_cloud_volume(cv):
-            file_def = {
-                "file_type": "obsPoints.ng-annotations",
-                "url": f"{base_url}/{annotation_name}",
-                "coordination_values": {
-                    "fileUid": f"annotation_{annotation_name}",
-                    # TODO: Add  distinction between centroids and other annotations
-                    "obsType": obs_type_annotation,
-                },
-            }
-            if annotation_options:
-                file_def["options"] = annotation_options
-            dataset.add_file(**file_def)
+            annotation_path = f"{data_path}/{annotation_name}" if host_local_data else None
+            annotation_url = None if host_local_data else f"{data_path}/{annotation_name}"
+            dataset.add_object(
+                ObsPointsNgAnnotationsWrapper(
+                    data_path=annotation_path,
+                    data_url=annotation_url,
+                    coordination_values={
+                        "fileUid": f"annotation_{annotation_name}",
+                        "obsType": obs_type,
+                    },
+                    options=annotation_options,
+                )
+            )
 
     # -------------------------------------------------------------------
     # Views
