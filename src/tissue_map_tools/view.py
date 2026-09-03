@@ -318,7 +318,7 @@ def view_precomputed_in_vitessce(
         vc.link_views_by_dict(
             [ng_view, lc_view],
             {
-                "spatialRenderingMode": "3D",
+                # "spatialRenderingMode": "3D",
                 "spatialZoom": 0,
                 "spatialTargetT": 0,
                 "spatialTargetX": 0,
@@ -337,18 +337,12 @@ def view_precomputed_in_vitessce(
     if host_local_data:
         if use_web_app is None:
             use_web_app = not is_running_in_notebook()
-        server_thread = threading.Thread(
-            target=cv.viewer, kwargs={"port": port}, daemon=True
-        )
-        server_thread.start()
-        time.sleep(1)
 
         if use_web_app:
             vc.web_app(port=port)
             input("Server running -- press Enter to stop...\n")
             return vc
         return vc.widget()
-
     return vc
 
 

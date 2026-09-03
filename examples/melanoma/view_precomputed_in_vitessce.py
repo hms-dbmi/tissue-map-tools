@@ -32,7 +32,7 @@ view_precomputed_in_vitessce(
     },
     use_web_app=True,
     initial_camera_state={
-            "position": [49.5, 1000.5, 5209.5],
+            "position": [5217273.5, 554404.125, 97352.421875],
             "projectionScale": 1024,
             "projectionOrientation": [
             -0.636204183101654,
