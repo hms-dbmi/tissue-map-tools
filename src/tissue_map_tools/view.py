@@ -11,7 +11,7 @@ from cloudvolume import CloudVolume
 from numpy.random import default_rng
 import numpy as np
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
-from tissue_map_tools.utils import is_running_in_notebook
+from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 from tissue_map_tools.data_model.annotations_utils import parse_annotations
 from vitessce import (
@@ -187,7 +187,6 @@ def view_precomputed_in_vitessce(
     """
 
     cv = CloudVolume(cloudpath=data_path)
-    base_url = f"http://{host}:{port}"
 
     vc = VitessceConfig(schema_version=schema_version, name=name)
     dataset = vc.add_dataset(name)
@@ -365,16 +364,18 @@ def view_precomputed_in_vitessce(
     # Serve locally + return
     # -------------------------------------------------------------------
     if host_local_data:
-            server_thread = threading.Thread(
-                target=cv.viewer, kwargs={"port": port}, daemon=True
-            )
-            server_thread.start()
-            time.sleep(1)
+        cv_port = find_free_port()
+        server_thread = threading.Thread(
+            target=cv.viewer, kwargs={"port": cv_port}, daemon=True
+        )
+        server_thread.start()
+        time.sleep(1)
 
     if use_web_app is None:
         use_web_app = not is_running_in_notebook()
     if use_web_app:
-        vc.web_app(port=port)
+        web_app_port = find_free_port()
+        vc.web_app(port=web_app_port)
         input("Server running -- press Enter to stop...\n")
         return vc
     return vc.widget()

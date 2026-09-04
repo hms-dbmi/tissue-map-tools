@@ -1,3 +1,5 @@
+import socket
+import subprocess
 def docstring_parameter(**kw):
     """Decorator to format docstrings with keyword arguments."""
 
@@ -20,3 +22,10 @@ def is_running_in_notebook() -> bool:
         return shell.__class__.__name__ == "ZMQInteractiveShell"
     except ImportError:
         return False
+    
+
+def find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("localhost", 0)) 
+        return s.getsockname()[1]
+
