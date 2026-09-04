@@ -365,15 +365,19 @@ def view_precomputed_in_vitessce(
     # Serve locally + return
     # -------------------------------------------------------------------
     if host_local_data:
-        if use_web_app is None:
-            use_web_app = not is_running_in_notebook()
-        if use_web_app:
-            vc.web_app(port=port)
-            input("Server running -- press Enter to stop...\n")
-            return vc
-        return vc.widget()
-    return vc
+            server_thread = threading.Thread(
+                target=cv.viewer, kwargs={"port": port}, daemon=True
+            )
+            server_thread.start()
+            time.sleep(1)
 
+    if use_web_app is None:
+        use_web_app = not is_running_in_notebook()
+    if use_web_app:
+        vc.web_app(port=port)
+        input("Server running -- press Enter to stop...\n")
+        return vc
+    return vc.widget()
 
 def view_precomputed_in_napari(
     data_path: str,
