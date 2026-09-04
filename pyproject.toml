@@ -18,6 +18,7 @@ dependencies = [
     "cloud-volume>=12.6.3",
     "xarray>=2024.9.0",
     "xmltodict>=1.0.2",
+    "vitessce[all]>=3.9.6",
 ]
 
 [dependency-groups]
@@ -34,7 +35,8 @@ examples = [
     "napari>=0.6.1",
     "pyqt5>=5.15.11",
     "fiona>=1.10.1",
-    "setuptools>=83.0.0",
+    "setuptools<81",
+    "anndata<0.13",
 ]
 dev = [
     "pre-commit>=4.2.0",
@@ -44,7 +46,7 @@ test = [
 ]
 
 [tool.uv]
-default-groups = ["examples", "dev", "test"]
+default-groups = ["examples", "dev", "test", "extra"]
 
 [build-system]
 requires = ["hatchling"]

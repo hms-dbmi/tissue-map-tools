@@ -98,31 +98,8 @@ subset = RNG.choice(len(sdata["molecule_baysor"]), 100, replace=False)
 print(sdata["molecule_baysor"].columns)
 # subset_df = sdata["molecule_baysor"].compute().iloc[subset]
 subset_df = sdata["molecule_baysor"].compute()
-subset_df = subset_df[
-    [
-        # working
-        "x",
-        "y",
-        "z",
-        "gene",
-        "area",
-        "mol_id",
-        "x_raw",
-        "y_raw",
-        "z_raw",
-        "brightness",
-        "total_magnitude",
-        "compartment",
-        "nuclei_probs",
-        "assignment_confidence",
-        #
-        "cell",
-        "is_noise",  # TODO: bool not working at the moment
-        # "ncv_color",  # TODO: represent as RGB
-        "layer",
-    ]
-]
-
+# TODO extracting all properties messes up with byte encoding
+subset_df = subset_df[["x", "y", "z", "gene"]]
 sdata["molecule_baysor"] = sd.models.PointsModel.parse(
     make_dtypes_compatible_with_precomputed_annotations(
         subset_df,
