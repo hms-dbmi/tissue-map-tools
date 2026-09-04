@@ -99,7 +99,7 @@ def view_precomputed_in_vitessce(
     obs_type_segmentation: str = "cell",
     obs_type_annotation: str = "cell",
     annotation_feature_type: str ="gene",
-    obsColorEncoding: str="obsColors"
+    obsColorEncoding: str="obsColors",
     initial_camera_state: dict | None = None,
     camera_presets: list[dict] | None = None,
     show_axis_lines: bool | None = None,
@@ -292,6 +292,22 @@ def view_precomputed_in_vitessce(
     if camera_presets is not None:
         lc_view.set_props(cameraPresets=camera_presets)
 
+    vc.link_views_by_dict(
+            [ng_view, lc_view],
+            {
+                "spatialRenderingMode": "3D",
+                "spatialZoom": 0,
+                "spatialTargetT": 0,
+                "spatialTargetX": 0,
+                "spatialTargetY": 0,
+                "spatialTargetZ": 0,
+                "spatialRotationX": 0,
+                "spatialRotationY": 0,
+                "spatialRotationOrbit": 0,
+            },
+            meta=False,
+    )
+
     if show_meshes:
         segmentation_channel = {
             "obsType": obs_type_segmentation,
@@ -319,22 +335,6 @@ def view_precomputed_in_vitessce(
                 ),
             },
             scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"),
-        )
-
-        vc.link_views_by_dict(
-            [ng_view, lc_view],
-            {
-                # "spatialRenderingMode": "3D",
-                "spatialZoom": 0,
-                "spatialTargetT": 0,
-                "spatialTargetX": 0,
-                "spatialTargetY": 0,
-                "spatialTargetZ": 0,
-                "spatialRotationX": 0,
-                "spatialRotationY": 0,
-                "spatialRotationOrbit": 0,
-            },
-            meta=False,
         )
 
     if annotation_file_uids:
