@@ -36,6 +36,7 @@ examples = [
     "pyqt5>=5.15.11",
     "fiona>=1.10.1",
     "setuptools<81",
+    "anndata<0.13",
 ]
 dev = [
     "pre-commit>=4.2.0",
