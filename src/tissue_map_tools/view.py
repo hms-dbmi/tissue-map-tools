@@ -107,7 +107,7 @@ def compute_initial_camera_state(
     data_path: str,
     segments: list[int] | list[str] | None = None,
     camera_segments: list[int] | list[str] | None = None,
-    zoom_multiplier: float = 0.1,
+    zoom_multiplier: float = 0.2,
     projection_orientation: tuple[float, float, float, float] = (
         -0.636204183101654,
         -0.5028395652770996,
