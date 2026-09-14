@@ -24,7 +24,9 @@ RNG = default_rng(42)
 napari_spatialdata.constants.config.PROJECT_3D_POINTS_TO_2D = False
 napari_spatialdata.constants.config.PROJECT_2_5D_SHAPES_TO_2D = False
 
-out_path = Path(__file__).parent.parent.parent / "out"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "merfish_mouse_ileum"
+out_path = dataset_path / "out"
+out_path.mkdir(parents=True, exist_ok=True)
 sdata_zarr_path = out_path / "merfish_mouse_ileum.sdata.zarr"
 precomputed_path = out_path / "merfish_mouse_ileum_precomputed"
 

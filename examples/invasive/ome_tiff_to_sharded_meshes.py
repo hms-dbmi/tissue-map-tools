@@ -23,7 +23,13 @@ from tissue_map_tools.view import (  # noqa: F401
 )
 
 ##
-f = Path(__file__).parent.parent.parent / "data" / "invasive_mask.ome.tiff"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "invasive"
+raw_path = dataset_path / "raw"
+out_path = dataset_path / "out"
+raw_path.mkdir(parents=True, exist_ok=True)
+out_path.mkdir(parents=True, exist_ok=True)
+
+f = raw_path / "invasive_mask.ome.tiff"
 if not f.exists():
     raise FileNotFoundError(
         f"File {f} does not exist. Please use symlinks to make the data available."
@@ -50,16 +56,18 @@ for size in data.shape:
 
 labels = Labels3DModel.parse(data, dims=dims)
 sdata = SpatialData.init_from_elements({"labels": labels})
-sdata.write("/Users/macbook/Desktop/invasive.zarr", overwrite=True)
+sdata_write_path = out_path / "invasive_mask.zarr"
+sdata.write(str(sdata_write_path), overwrite=True)
 
 ##
 # read again to take advantage of the Zarr chunking
-sdata = SpatialData.read("/Users/macbook/Desktop/invasive.zarr")
+sdata = SpatialData.read(str(sdata_write_path))
 
 ##
+precomputed_path = out_path / "invasive_precomputed"
 from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
     raster=sdata["labels"],
-    precomputed_path="/Users/macbook/Desktop/invasive_precomputed",
+    precomputed_path=str(precomputed_path),
     units_factor=1000,
     # object_ids=list(range(1000)),
     shape=(128, 128, 128),
@@ -68,6 +76,4 @@ from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
 )
 
 ##
-viewer = view_precomputed_in_neuroglancer(
-    data_path="/Users/macbook/Desktop/invasive_precomputed", mesh_ids=[5]
-)
+viewer = view_precomputed_in_neuroglancer(data_path=str(precomputed_path), mesh_ids=[5])

@@ -21,9 +21,13 @@ from geopandas import GeoDataFrame
 pd.set_option("future.infer_string", False)
 
 # download the data: https://datadryad.org/dataset/doi:10.5061/dryad.jm63xsjb2
-out_path = Path(__file__).parent.parent.parent / "out"
-download_path = out_path / "data_release_baysor_merfish_gut.zip"
-unzipped_path = out_path / "data_release_baysor_merfish_gut"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "merfish_mouse_ileum"
+raw_path = dataset_path / "raw"
+out_path = dataset_path / "out"
+raw_path.mkdir(parents=True, exist_ok=True)
+out_path.mkdir(parents=True, exist_ok=True)
+download_path = raw_path / "data_release_baysor_merfish_gut.zip"
+unzipped_path = raw_path / "data_release_baysor_merfish_gut"
 
 # download the example data
 CHECKSUM_DOWNLOAD = "501a206666b5895e9182245dda8d4e60"
@@ -40,7 +44,7 @@ if (
 # unzip the downloaded file
 if not unzipped_path.exists():
     subprocess.run(
-        f'unzip -o "{download_path}" -d "{out_path}"', shell=True, check=True
+        f'unzip -o "{download_path}" -d "{raw_path}"', shell=True, check=True
     )
 
 # parse raw images
