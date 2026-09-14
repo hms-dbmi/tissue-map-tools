@@ -11,7 +11,6 @@ requires-python = ">=3.12"
 dependencies = [
     "trimesh",
     "pyfqmr",
-    "jupyterlab>=3",
     "ome-types>=0.6.0",
     "ome-zarr>=0.10.3",
     "tifffile>=2025.3.30",
@@ -37,6 +36,8 @@ examples = [
     "fiona>=1.10.1",
     "setuptools<81",
     "anndata<0.13",
+    "jupyterlab>=3",
+    "jupyter-black",
 ]
 dev = [
     "pre-commit>=4.2.0",
