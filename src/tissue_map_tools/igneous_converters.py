@@ -11,6 +11,9 @@ constraints may consider using a separate library for converting the data to the
 sharded format and for creating meshes.
 """
 
+import contextlib
+import inspect
+
 from cloudvolume import CloudVolume
 from igneous.task_creation.mesh import (
     create_meshing_tasks,
@@ -36,14 +39,48 @@ DEFAULT_SHAPE = (448, 448, 448)
 DEFAULT_MIN_CHUNK_SIZE = (256, 256, 256)
 
 
+@contextlib.contextmanager
+def sparse_cloudvolume_progress():
+    """
+    Force `CloudVolume`'s default `progress` argument to False for the duration of the
+    context.
+
+    `CloudVolume` shows a `tqdm` progress bar by default when running inside a Jupyter/
+    IPython kernel (but not in a plain script). Igneous's mesh-merging tasks construct one
+    `CloudVolume` per shard, in every worker process, without passing `progress=` -- so
+    inside a notebook this floods stdout/stderr with one bar per worker per shard. We don't
+    control those call sites, so we can't just pass `progress=False` there; this patches
+    `CloudVolume`'s default value directly instead, which affects every caller.
+    """
+    signature = inspect.signature(CloudVolume.__new__)
+    defaulted_params = [
+        name
+        for name, parameter in signature.parameters.items()
+        if parameter.default is not inspect.Parameter.empty
+    ]
+    progress_index = defaulted_params.index("progress")
+    original_defaults = CloudVolume.__new__.__defaults__
+    patched_defaults = list(original_defaults)
+    patched_defaults[progress_index] = False
+    CloudVolume.__new__.__defaults__ = tuple(patched_defaults)
+    try:
+        yield
+    finally:
+        CloudVolume.__new__.__defaults__ = original_defaults
+
+
 def from_precomputed_raster_modify_scales_and_sharding(
     data_path: str,
     multiscale: bool,
     sharded: bool,
     num_mips: int = 4,
     parallel: int | bool = True,
+    sparse_progress: bool = True,
 ):
     task_queue = LocalTaskQueue(parallel=parallel)
+    progress_ctx = (
+        sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()
+    )
 
     # TODO: sharded multiscale is affected by this bug:
     #
@@ -57,24 +94,25 @@ def from_precomputed_raster_modify_scales_and_sharding(
     #     )
 
     if multiscale:
-        for i in range(num_mips):
-            cv = CloudVolume(data_path, mip=i)
-            factor = get_downsampling_factor(cv.shape)
-            if sharded:
-                task = create_image_shard_downsample_tasks(
-                    cloudpath=data_path,
-                    factor=factor,
-                    mip=i,
-                )
-            else:
-                task = create_downsampling_tasks(
-                    layer_path=data_path,
-                    mip=i,
-                    num_mips=1,
-                    factor=factor,
-                )
-            task_queue.insert(task)
-            task_queue.execute()
+        with progress_ctx:
+            for i in range(num_mips):
+                cv = CloudVolume(data_path, mip=i)
+                factor = get_downsampling_factor(cv.shape)
+                if sharded:
+                    task = create_image_shard_downsample_tasks(
+                        cloudpath=data_path,
+                        factor=factor,
+                        mip=i,
+                    )
+                else:
+                    task = create_downsampling_tasks(
+                        layer_path=data_path,
+                        mip=i,
+                        num_mips=1,
+                        factor=factor,
+                    )
+                task_queue.insert(task)
+                task_queue.execute()
         return
     else:
         cv = CloudVolume(data_path)
@@ -113,38 +151,47 @@ def from_precomputed_raster_to_precomputed_meshes(
     min_chunk_size: tuple[int, int, int] = DEFAULT_MIN_CHUNK_SIZE,
     parallel: int | bool = True,
     sharded: bool = True,
+    sparse_progress: bool = True,
 ):
     task_queue = LocalTaskQueue(parallel=parallel)
+    progress_ctx = (
+        sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()
+    )
     # the actual computation of the meshes happens in
     # igneous › tasks › mesh › muitires.py › process_mesh()
 
-    forge_task = create_meshing_tasks(
-        layer_path=data_path,
-        shape=shape,
-        mip=0,
-        mesh_dir=mesh_name,
-        object_ids=object_ids,
-        sharded=sharded,
-    )
-    task_queue.insert(forge_task)
-    task_queue.execute()
+    with progress_ctx:
+        forge_task = create_meshing_tasks(
+            layer_path=data_path,
+            shape=shape,
+            mip=0,
+            mesh_dir=mesh_name,
+            object_ids=object_ids,
+            sharded=sharded,
+        )
+        task_queue.insert(forge_task)
+        task_queue.execute()
 
-    if sharded:
-        merge_task = create_sharded_multires_mesh_tasks(
-            cloudpath=data_path,
-            num_lod=nlod,
-            min_chunk_size=min_chunk_size,
-            mesh_dir=mesh_name,
-        )
-    else:
-        merge_task = create_unsharded_multires_mesh_tasks(
-            cloudpath=data_path,
-            num_lod=nlod,
-            min_chunk_size=min_chunk_size,
-            mesh_dir=mesh_name,
-        )
-    task_queue.insert(merge_task)
-    task_queue.execute()
+        if sharded:
+            merge_task = create_sharded_multires_mesh_tasks(
+                cloudpath=data_path,
+                num_lod=nlod,
+                min_chunk_size=min_chunk_size,
+                mesh_dir=mesh_name,
+                # only controls the one-time (in the parent process) progress bar for
+                # uploading the shard-label JSON files; the actual per-worker noise is
+                # handled by `sparse_cloudvolume_progress` above.
+                progress=not sparse_progress,
+            )
+        else:
+            merge_task = create_unsharded_multires_mesh_tasks(
+                cloudpath=data_path,
+                num_lod=nlod,
+                min_chunk_size=min_chunk_size,
+                mesh_dir=mesh_name,
+            )
+        task_queue.insert(merge_task)
+        task_queue.execute()
 
 
 def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
@@ -161,6 +208,7 @@ def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
     nlod: int = DEFAULT_NLOD,
     min_chunk_size: tuple[int, int, int] = DEFAULT_MIN_CHUNK_SIZE,
     parallel: int | bool = True,
+    sparse_progress: bool = True,
 ):
     from_ome_zarr_04_raster_to_precomputed_raster(
         ome_zarr_path=ome_zarr_path,
@@ -173,6 +221,7 @@ def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
         parallel=parallel,
         sharded=sharded_raster,
         multiscale=multiscale,
+        sparse_progress=sparse_progress,
     )
     from_precomputed_raster_to_precomputed_meshes(
         data_path=str(precomputed_path),
@@ -183,6 +232,7 @@ def from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
         min_chunk_size=min_chunk_size,
         parallel=parallel,
         sharded=sharded_mesh,
+        sparse_progress=sparse_progress,
     )
 
 
@@ -199,6 +249,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
     nlod: int = DEFAULT_NLOD,
     min_chunk_size: tuple[int, int, int] = DEFAULT_MIN_CHUNK_SIZE,
     parallel: int | bool = True,
+    sparse_progress: bool = True,
 ) -> None:
     """
     Convert a SpatialData raster element to a precomputed volume with meshes.
@@ -241,6 +292,13 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         of levels of detail (see above).
     parallel
         Parallel processing.
+    sparse_progress
+        When True (default), force `CloudVolume`'s default `progress` argument to False
+        (see `sparse_cloudvolume_progress`). That default is normally `True` inside a
+        Jupyter/IPython kernel (but `False` in a plain script), which otherwise floods
+        stdout/stderr with a `tqdm` bar per worker per mesh shard -- this is what actually
+        dominates output volume for a long-running conversion. Set to False to restore
+        igneous/cloudvolume's default behavior.
 
     Returns
     -------
@@ -274,6 +332,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         parallel=parallel,
         sharded=sharded_raster,
         multiscale=multiscale,
+        sparse_progress=sparse_progress,
     )
     from_precomputed_raster_to_precomputed_meshes(
         data_path=str(precomputed_path),
@@ -284,6 +343,7 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         min_chunk_size=min_chunk_size,
         parallel=parallel,
         sharded=sharded_mesh,
+        sparse_progress=sparse_progress,
     )
 
 
