@@ -24,7 +24,9 @@ RNG = default_rng(42)
 napari_spatialdata.constants.config.PROJECT_3D_POINTS_TO_2D = False
 napari_spatialdata.constants.config.PROJECT_2_5D_SHAPES_TO_2D = False
 
-out_path = Path(__file__).parent.parent.parent / "out"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "merfish_mouse_ileum"
+out_path = dataset_path / "out"
+out_path.mkdir(parents=True, exist_ok=True)
 sdata_zarr_path = out_path / "merfish_mouse_ileum.sdata.zarr"
 precomputed_path = out_path / "merfish_mouse_ileum_precomputed"
 
@@ -98,31 +100,8 @@ subset = RNG.choice(len(sdata["molecule_baysor"]), 100, replace=False)
 print(sdata["molecule_baysor"].columns)
 # subset_df = sdata["molecule_baysor"].compute().iloc[subset]
 subset_df = sdata["molecule_baysor"].compute()
-subset_df = subset_df[
-    [
-        # working
-        "x",
-        "y",
-        "z",
-        "gene",
-        "area",
-        "mol_id",
-        "x_raw",
-        "y_raw",
-        "z_raw",
-        "brightness",
-        "total_magnitude",
-        "compartment",
-        "nuclei_probs",
-        "assignment_confidence",
-        #
-        "cell",
-        "is_noise",  # TODO: bool not working at the moment
-        # "ncv_color",  # TODO: represent as RGB
-        "layer",
-    ]
-]
-
+# TODO extracting all properties messes up with byte encoding
+subset_df = subset_df[["x", "y", "z", "gene"]]
 sdata["molecule_baysor"] = sd.models.PointsModel.parse(
     make_dtypes_compatible_with_precomputed_annotations(
         subset_df,

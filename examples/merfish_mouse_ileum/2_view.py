@@ -4,7 +4,8 @@ from tissue_map_tools.view import (  # noqa: F401
 )
 from pathlib import Path
 
-out_path = Path(__file__).parent.parent.parent / "out"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "merfish_mouse_ileum"
+out_path = dataset_path / "out"
 precomputed_path = out_path / "merfish_mouse_ileum_precomputed"
 
 

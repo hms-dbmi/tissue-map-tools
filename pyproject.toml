@@ -11,16 +11,19 @@ requires-python = ">=3.12"
 dependencies = [
     "trimesh",
     "pyfqmr",
-    "jupyterlab>=3",
     "ome-types>=0.6.0",
     "ome-zarr>=0.10.3",
     "tifffile>=2025.3.30",
     "cloud-volume>=12.6.3",
     "xarray>=2024.9.0",
     "xmltodict>=1.0.2",
+    "vitessce[all]>=3.9.6",
 ]
 
 [dependency-groups]
+# igneous-pipeline is GPL-3 licensed, so this group is intentionally left out of
+# `tool.uv.default-groups` below; install it explicitly (e.g. `uv sync --group extra`)
+# if you need the igneous-based mesh conversion helpers.
 extra = [
     # https://github.com/seung-lab/igneous/issues/211#issuecomment-3366714308
     "igneous-pipeline>=4.32.0,!=4.33.0,!=4.34.0",
@@ -34,7 +37,10 @@ examples = [
     "napari>=0.6.1",
     "pyqt5>=5.15.11",
     "fiona>=1.10.1",
-    "setuptools>=83.0.0",
+    "setuptools<81",
+    "anndata<0.13",
+    "jupyterlab>=3",
+    "jupyter-black",
 ]
 dev = [
     "pre-commit>=4.2.0",
@@ -44,7 +50,7 @@ test = [
 ]
 
 [tool.uv]
-default-groups = ["examples", "dev", "test"]
+default-groups = ["examples"]
 
 [build-system]
 requires = ["hatchling"]

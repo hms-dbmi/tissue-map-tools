@@ -1,7 +1,8 @@
 from pathlib import Path
 from tissue_map_tools.data_model.annotations_utils import parse_annotations
 
-out_path = Path(__file__).parent.parent.parent / "out"
+dataset_path = Path(__file__).parent.parent.parent / "data" / "merfish_mouse_ileum"
+out_path = dataset_path / "out"
 precomputed_path = out_path / "merfish_mouse_ileum_precomputed"
 
 if __name__ == "__main__":
