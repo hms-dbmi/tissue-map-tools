@@ -2,6 +2,7 @@ import webbrowser
 import warnings
 from typing import Any
 from pathlib import Path
+from cloudvolume import CloudVolume
 
 from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
@@ -23,11 +24,17 @@ VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
 def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
     resolved_ids = spec.segments
-    if resolved_ids is None and (spec.local_path or spec.data_url):
-        mesh_root = spec.local_path or spec.data_url
-        resolved_ids = get_ids_from_mesh_files(root_data_path=mesh_root, data_path=Path(mesh_root) / "mesh")
+    if resolved_ids is None:
+        cv_path = spec.local_path or spec.data_url
+        if cv_path:
+            cv = CloudVolume(cloudpath=cv_path)
+            mesh_subpath = cv.meta.info.get("mesh")
+            if mesh_subpath is not None:
+                resolved_ids = get_ids_from_mesh_files(
+                    root_data_path=cv_path,
+                    data_path=Path(cv_path) / mesh_subpath,
+                )
     resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
-
     dataset.add_object(ObsSegmentationsNgPrecomputedWrapper(
         data_path=spec.local_path, data_url=spec.data_url,
         coordination_values={"fileUid": spec.file_uid},
