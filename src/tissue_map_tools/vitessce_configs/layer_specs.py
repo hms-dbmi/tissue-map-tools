@@ -28,9 +28,10 @@ class SegmentationLayerSpec:
     segments: list[int] | list[str] | None = None
     """Specific segment IDs to select and color. If None, all real object IDs
     are auto-discovered from the mesh shard files (via get_ids_from_mesh_files)."""
-    segment_colors: dict[str, str] | None = None
-    """Optional dict mapping segment ID (as a string) to a hex color. If not
-    provided, a default HSV rainbow color is generated per segment."""
+    # TODO: Uncomment when upstream bug is resolved (https://github.com/vitessce/vitessce-python/issues/517)
+    # segment_colors: dict[str, str] | None = None
+    # """Optional dict mapping segment ID (as a string) to a hex color. If not
+    # provided, a default HSV rainbow color is generated per segment."""
     obs_sets_csv: TabularObsSpec | None = None
     """Optional user-supplied obsSets TabularObsSpec for this layer. If not
     given, one is auto-generated from resolved segment ids (explicit
