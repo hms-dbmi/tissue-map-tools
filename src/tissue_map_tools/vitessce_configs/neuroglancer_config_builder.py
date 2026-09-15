@@ -9,27 +9,40 @@ from vitessce import (
     make_ids_csv_data_url, make_colors_csv_data_url,
 )
 from .local_serving import resolve_url
+import colorsys
+from tissue_map_tools.shard_util import get_ids_from_mesh_files
+from vitessce import make_ids_csv_data_url, make_colors_csv_data_url
 
-def _add_segmentation(dataset, spec: SegmentationLayerSpec):
+def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
+    resolved_ids = spec.segments
+    if resolved_ids is None and (spec.local_path or spec.data_url):
+        mesh_root = spec.local_path or spec.data_url
+        resolved_ids = get_ids_from_mesh_files(root_data_path=mesh_root, data_path=Path(mesh_root) / "mesh")
+    resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
+
     dataset.add_object(ObsSegmentationsNgPrecomputedWrapper(
-        data_url=resolve_url(spec),
-        coordination_values={"fileUid": spec.file_uid, "obsType": spec.obs_type},
+        data_path=spec.local_path, data_url=spec.data_url,
+        coordination_values={"fileUid": spec.file_uid},
         options=spec.options or None,
     ))
-    channel = {
-        "obsType": spec.obs_type,
-        "spatialChannelVisible": True,
-        "spatialChannelColor": spec.channel_color,
-        ct.OBS_COLOR_ENCODING: spec.color_encoding,
-    }
-    if spec.color_encoding == "geneSelection":
-        channel.update({
-            "featureType": spec.feature_type,
-            "featureValueType": spec.feature_value_type,
-            ct.FEATURE_SELECTION: spec.feature_selection,
-            ct.FEATURE_VALUE_COLORMAP: spec.feature_value_colormap,
-            ct.FEATURE_VALUE_COLORMAP_RANGE: spec.feature_value_colormap_range,
-        })
+
+    channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
+    if resolved_ids:
+        segment_colors = spec.segment_colors or {
+            seg_id: "#{:02x}{:02x}{:02x}".format(*[int(c * 255) for c in colorsys.hsv_to_rgb(i / len(resolved_ids), 0.65, 0.9)])
+            for i, seg_id in enumerate(resolved_ids)
+        }
+        dataset.add_object(CsvWrapper(
+            csv_url=make_ids_csv_data_url(resolved_ids, use_web_app), data_type="obsFeatureMatrix",
+            coordination_values={"obsType": spec.obs_type, "featureType": "feature", "featureValueType": "value"},
+        ))
+        dataset.add_object(CsvWrapper(
+            csv_url=make_colors_csv_data_url({i: segment_colors.get(i, "#ffffff") for i in resolved_ids}, use_web_app),
+            data_type="obsColors", options={"obsIndex": "id", "obsColors": "color"},
+            coordination_values={"obsType": spec.obs_type},
+        ))
+        channel.update({"featureType": "feature", "featureValueType": "value", ct.OBS_COLOR_ENCODING: spec.color_encoding})
+
     return {
         "fileUid": spec.file_uid,
         "spatialLayerOpacity": 1,
@@ -42,6 +55,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec):
 def _add_annotation(dataset, spec: AnnotationLayerSpec):
     dataset.add_object(ObsPointsNgAnnotationsWrapper(
         data_url=resolve_url(spec),
+        data_path=spec.local_path,
         coordination_values={
             "fileUid": spec.file_uid,
             "obsType": spec.obs_type,
@@ -124,7 +138,7 @@ def build_neuroglancer_config(
     if seg_channels:
         vc.link_views_by_dict([ng_view, lc_view],
             {"segmentationLayer": CL(seg_channels)},
-            scope_prefix=get_initial_coordination_scope_prefix("A", dt.OBS_SEGMENTATIONS))
+            scope_prefix=get_initial_coordination_scope_prefix("A", "obsSegmentations"))
 
     if point_layers:
         vc.link_views_by_dict([ng_view, lc_view],
