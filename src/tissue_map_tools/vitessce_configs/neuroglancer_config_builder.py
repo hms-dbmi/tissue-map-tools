@@ -40,32 +40,32 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         coordination_values={"fileUid": spec.file_uid},
         options=spec.options or None,
     ))
-
-    channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
-    if resolved_ids:
-        segment_colors = spec.segment_colors or {
-            seg_id: "#{:02x}{:02x}{:02x}".format(*[int(c * 255) for c in colorsys.hsv_to_rgb(i / len(resolved_ids), 0.65, 0.9)])
-            for i, seg_id in enumerate(resolved_ids)
-        }
+    added_obs_sets = False
+    if spec.obs_sets_csv is not None:
+        _add_tabular(dataset, spec.obs_sets_csv)
+        added_obs_sets = True
+    elif resolved_ids:
+        set_name = spec.obs_set_name or spec.label or spec.file_uid
         dataset.add_object(CsvWrapper(
-            csv_url=make_ids_csv_data_url(resolved_ids, use_web_app), data_type="obsFeatureMatrix",
-            coordination_values={"obsType": spec.obs_type, "featureType": "feature", "featureValueType": "value"},
-        ))
-        dataset.add_object(CsvWrapper(
-            csv_url=make_colors_csv_data_url({i: segment_colors.get(i, "#ffffff") for i in resolved_ids}, use_web_app),
-            data_type="obsColors", options={"obsIndex": "id", "obsColors": "color"},
+            csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, for_web_app=use_web_app),
+            data_type="obsSets",
+            options={"obsIndex": "id", "obsSets": [{"name": set_name, "column": set_name}]},
             coordination_values={"obsType": spec.obs_type},
         ))
-        channel.update({"featureType": "feature", "featureValueType": "value", ct.OBS_COLOR_ENCODING: spec.color_encoding})
+        added_obs_sets = True
 
-    return {
+    channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
+    if added_obs_sets:
+        channel[ct.OBS_COLOR_ENCODING] = "cellSetSelection"
+
+    channel_dict = {
         "fileUid": spec.file_uid,
         "spatialLayerOpacity": 1,
         "spatialLayerVisible": True,
         "spatialLayerLabel": spec.label or spec.file_uid,
         "segmentationChannel": CL([channel]),
     }
-
+    return channel_dict, added_obs_sets
 
 def _add_annotation(dataset, spec: AnnotationLayerSpec):
     dataset.add_object(ObsPointsNgAnnotationsWrapper(
@@ -103,6 +103,30 @@ def _add_tabular(dataset, spec: TabularObsSpec):
         coordination_values=spec.coordination_values,
     ))
 
+def make_obs_set_csv_data_url(
+    ids: list[str], set_name: str, set_column: str = "Segment Type", for_web_app: bool = False,
+) -> str:
+    """
+    Build a `data:` URL containing a small inline obsSets.csv with an `id`
+    column and a single categorical column (`set_column`), assigning every
+    id to the same group label (`set_name`).
+
+    Mirrors vitessce.make_ids_csv_data_url / make_colors_csv_data_url's
+    pattern exactly (csv writer -> quote -> data:text/csv,...) — there is no
+    built-in equivalent in vitessce-python today, though make_ids_csv_data_url's
+    own docstring anticipates an obsSets.csv use case like this one.
+    """
+    import csv, io
+    from urllib.parse import quote
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["id", set_column])
+    writer.writerows([[i, set_name] for i in ids])
+    encoded = quote(buf.getvalue())
+    if for_web_app:
+        encoded = quote(encoded, safe="")
+    return f"data:text/csv,{encoded}"
 
 def build_neuroglancer_config(
     segmentations: list[SegmentationLayerSpec] = (),
