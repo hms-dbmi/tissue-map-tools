@@ -1,3 +1,8 @@
+import webbrowser
+import warnings
+from typing import Any
+from pathlib import Path
+
 from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
@@ -12,6 +17,9 @@ from .local_serving import resolve_url
 import colorsys
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from vitessce import make_ids_csv_data_url, make_colors_csv_data_url
+from tissue_map_tools.utils import is_running_in_notebook, find_free_port
+
+VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
 def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
     resolved_ids = spec.segments
@@ -90,28 +98,107 @@ def _add_tabular(dataset, spec: TabularObsSpec):
 
 
 def build_neuroglancer_config(
-    name: str,
-    schema_version: str,
     segmentations: list[SegmentationLayerSpec] = (),
     annotations: list[AnnotationLayerSpec] = (),
     tabular_obs: list[TabularObsSpec] = (),
+    name: str = "Precomputed data",
+    schema_version: str = "1.0.17",
     initial_camera_state: dict | None = None,
     show_axis_lines: bool | None = None,
     mesh_load_projection_scale_threshold: float | None = None,
     layer_per_feature_for_points: bool | None = None,
-    extra_view_types: list[str] = (),   # e.g. [vt.FEATURE_LIST, vt.OBS_SETS, vt.SCATTERPLOT]
-) -> VitessceConfig:
+    extra_view_types: list[str] = (),
+    spatial_rendering_mode: str = "3D",
+    spatial_zoom: float = 0,
+    spatial_target_t: float = 0,
+    spatial_target_x: float = 0,
+    spatial_target_y: float = 0,
+    spatial_target_z: float = 0,
+    spatial_rotation_x: float = 0,
+    spatial_rotation_y: float = 0,
+    spatial_rotation_z: float = 0,
+    spatial_rotation_orbit: float = 0,
+    use_web_app: bool | None = None,
+):
+    """
+    Build a Vitessce Neuroglancer config from one or more segmentation, point
+    annotation, and tabular obs (CSV / spatialdata.zarr) layers, and return it
+    as a ready viewer - generalized to multiple layers of each kind.
+
+    Local vs. remote layers are decided per-spec (`local_path` vs. `data_url`
+    on each `SegmentationLayerSpec`/`AnnotationLayerSpec`) rather than by a
+    single flag for the whole config, since a multi-layer config may mix
+    local and already-remote sources.
+
+    Parameters
+    ----------
+    segmentations
+        Segmentation + mesh layers to add, each as an `obsSegmentations.ng-precomputed`
+        file wired up via `segmentationLayer`/`segmentationChannel` coordination.
+        Empty by default.
+    annotations
+        Point annotation layers to add, each as an `obsPoints.ng-annotations` file
+        wired up via `pointLayer` coordination. Empty by default.
+    tabular_obs
+        CSV/spatialdata.zarr obs sources (obsSets, obsEmbedding, obsFeatureMatrix)
+        to add alongside the spatial layers, e.g. for a gene expression matrix or
+        cell-type sets. Empty by default.
+    name
+        Name of the Vitessce config. Defaults to `"Precomputed data"`.
+    schema_version
+        Vitessce config schema version. Defaults to `"1.0.17"`.
+    initial_camera_state
+        Optional dict with `'position'`, `'projectionScale'`, and
+        `'projectionOrientation'` keys, passed to the Neuroglancer view via
+        `set_props(initialNgCameraState=...)`. See `compute_initial_camera_state`
+        for computing one from the dataset's actual content instead of guessing.
+    show_axis_lines
+        Optional bool passed to the Neuroglancer view via `set_props(showAxisLines=...)`.
+    mesh_load_projection_scale_threshold
+        Optional float passed to the Neuroglancer view via
+        `set_props(meshLoadProjectionScaleThreshold=...)`. Maximum projectionScale
+        at which meshes start loading — higher means meshes load at lower zoom levels.
+    layer_per_feature_for_points
+        Optional bool passed to the `layerControllerBeta` view via
+        `set_props(layerPerFeatureForPoints=...)`.
+    extra_view_types
+        Additional view component names to add alongside the Neuroglancer and
+        layerControllerBeta views, e.g. `["featureList", "obsSets", "scatterplot"]`.
+        Empty by default.
+    spatial_rendering_mode, spatial_zoom, spatial_target_t, spatial_target_x,
+    spatial_target_y, spatial_target_z, spatial_rotation_x, spatial_rotation_y,
+    spatial_rotation_z, spatial_rotation_orbit
+        Initial values for the corresponding spatial coordination types, linked
+        across the Neuroglancer and layerControllerBeta views. Defaults match
+        `view_precomputed_in_vitessce`'s hardcoded values (3D rendering, camera
+        centered at the origin with no rotation) — override any of these to
+        start the view in a different state.
+    use_web_app
+        If None (default), auto-detected: True when running outside a Jupyter
+        notebook (plain script or terminal), False when running inside one. Set
+        explicitly to override this — e.g. force True in a notebook if you
+        specifically want the `vitessce.io` browser tab instead of the inline widget.
+
+    Returns
+    -------
+    A Vitessce widget (via `VitessceConfig.widget()`) if `use_web_app=False`, or
+    the `VitessceConfig` object itself if `use_web_app=True` (after opening a
+    browser tab and blocking until the user presses Enter).
+    """
+    if use_web_app is None:
+        use_web_app = not is_running_in_notebook()
+
     vc = VitessceConfig(schema_version=schema_version, name=name)
     dataset = vc.add_dataset(name=name)
 
     for t in tabular_obs:
         _add_tabular(dataset, t)
 
-    seg_channels = [_add_segmentation(dataset, s) for s in segmentations]
+    seg_channels = [_add_segmentation(dataset, s, use_web_app) for s in segmentations]
     point_layers = [_add_annotation(dataset, a) for a in annotations]
 
     ng_view = vc.add_view("neuroglancer", dataset=dataset)
-    ng_props = {}
+    ng_props: dict[str, Any] = {}
     if initial_camera_state is not None:
         ng_props["initialNgCameraState"] = initial_camera_state
     if show_axis_lines is not None:
@@ -128,11 +215,16 @@ def build_neuroglancer_config(
     extra_views = [vc.add_view(v, dataset=dataset) for v in extra_view_types]
 
     vc.link_views_by_dict([ng_view, lc_view], {
-        "spatialRenderingMode": "3D",
-        "spatialZoom": 0, "spatialTargetT": 0,
-        "spatialTargetX": 0, "spatialTargetY": 0, "spatialTargetZ": 0,
-        "spatialRotationX": 0, "spatialRotationY": 0, "spatialRotationZ": 0,
-        "spatialRotationOrbit": 0,
+        "spatialRenderingMode": spatial_rendering_mode,
+        "spatialZoom": spatial_zoom,
+        "spatialTargetT": spatial_target_t,
+        "spatialTargetX": spatial_target_x,
+        "spatialTargetY": spatial_target_y,
+        "spatialTargetZ": spatial_target_z,
+        "spatialRotationX": spatial_rotation_x,
+        "spatialRotationY": spatial_rotation_y,
+        "spatialRotationZ": spatial_rotation_z,
+        "spatialRotationOrbit": spatial_rotation_orbit,
     }, meta=False)
 
     if seg_channels:
@@ -146,4 +238,22 @@ def build_neuroglancer_config(
             scope_prefix=get_initial_coordination_scope_prefix("A", "obsPoints"))
 
     vc.layout(hconcat(ng_view, vconcat(lc_view, *extra_views)))
-    return vc
+
+    if use_web_app:
+        web_app_port = find_free_port()
+        vitessce_url = vc.web_app(port=web_app_port, open=False)
+        if len(vitessce_url) > VITESSCE_WEB_APP_URL_WARN_LENGTH:
+            warnings.warn(
+                f"The generated vitessce.io URL is {len(vitessce_url)} characters long, "
+                f"which exceeds the {VITESSCE_WEB_APP_URL_WARN_LENGTH}-character heuristic "
+                "threshold. This usually happens with many auto-discovered segments, "
+                "since every segment id/color is embedded inline in the URL. Pass an "
+                "explicit, smaller `segments` list on the SegmentationLayerSpec, or "
+                "use `use_web_app=False` for the notebook-inline widget instead, which "
+                "serves data over local HTTP rather than embedding it in the URL.",
+                stacklevel=2,
+            )
+        webbrowser.open(vitessce_url)
+        input("Server running -- press Enter to stop...\n")
+        return vc
+    return vc.widget()

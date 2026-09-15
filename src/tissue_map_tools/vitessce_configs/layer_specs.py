@@ -16,6 +16,12 @@ class SegmentationLayerSpec:
     feature_selection: list[str] | None = None
     feature_value_colormap: str | None = None
     feature_value_colormap_range: tuple[float, float] | None = None
+    segments: list[int] | list[str] | None = None
+    """Specific segment IDs to select and color. If None, all real object IDs
+    are auto-discovered from the mesh shard files (via get_ids_from_mesh_files)."""
+    segment_colors: dict[str, str] | None = None
+    """Optional dict mapping segment ID (as a string) to a hex color. If not
+    provided, a default HSV rainbow color is generated per segment."""
 
 
 @dataclass
