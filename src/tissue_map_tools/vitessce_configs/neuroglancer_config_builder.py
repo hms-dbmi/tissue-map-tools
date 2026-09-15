@@ -1,6 +1,7 @@
 import webbrowser
 import warnings
 from typing import Any
+import colorsys
 from pathlib import Path
 from cloudvolume import CloudVolume
 
@@ -14,8 +15,7 @@ from vitessce import (
     CsvWrapper, ObsSegmentationsNgPrecomputedWrapper, ObsPointsNgAnnotationsWrapper,
     make_ids_csv_data_url, make_colors_csv_data_url,
 )
-from .local_serving import resolve_url
-import colorsys
+
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from vitessce import make_ids_csv_data_url, make_colors_csv_data_url
 from tissue_map_tools.utils import is_running_in_notebook, find_free_port
@@ -36,7 +36,8 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
                 )
     resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
     dataset.add_object(ObsSegmentationsNgPrecomputedWrapper(
-        data_path=spec.local_path, data_url=spec.data_url,
+        data_path=spec.local_path, 
+        data_url=spec.data_url,
         coordination_values={"fileUid": spec.file_uid},
         options=spec.options or None,
     ))
@@ -69,8 +70,8 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
 
 def _add_annotation(dataset, spec: AnnotationLayerSpec):
     dataset.add_object(ObsPointsNgAnnotationsWrapper(
-        data_url=resolve_url(spec),
         data_path=spec.local_path,
+        data_url=spec.data_url,
         coordination_values={
             "fileUid": spec.file_uid,
             "obsType": spec.obs_type,
@@ -224,8 +225,10 @@ def build_neuroglancer_config(
 
     for t in tabular_obs:
         _add_tabular(dataset, t)
+    seg_results = [_add_segmentation(dataset, s, use_web_app) for s in segmentations]
+    seg_channels = [channel for channel, _ in seg_results]
+    any_obs_sets = any(added for _, added in seg_results)
 
-    seg_channels = [_add_segmentation(dataset, s, use_web_app) for s in segmentations]
     point_layers = [_add_annotation(dataset, a) for a in annotations]
 
     ng_view = vc.add_view("neuroglancer", dataset=dataset)
@@ -243,7 +246,10 @@ def build_neuroglancer_config(
     if layer_per_feature_for_points is not None:
         lc_view.set_props(layerPerFeatureForPoints=layer_per_feature_for_points)
 
-    extra_views = [vc.add_view(v, dataset=dataset) for v in extra_view_types]
+    view_types = list(extra_view_types)
+    if any_obs_sets and "obsSets" not in view_types:
+        view_types = view_types + ["obsSets"]
+    extra_views = [vc.add_view(v, dataset=dataset) for v in view_types]
 
     vc.link_views_by_dict([ng_view, lc_view], {
         "spatialRenderingMode": spatial_rendering_mode,
