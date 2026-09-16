@@ -20,6 +20,13 @@ from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from vitessce import make_ids_csv_data_url, make_colors_csv_data_url
 from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 
+# `VitessceConfig.web_app()` embeds the *entire* config (including inline `data:` CSV
+# URLs for every segment id/color) as URL-encoded JSON in the URL it opens in the
+# browser. Past a certain length, opening it just silently fails and the browser lands
+# on "about:blank" instead of vitessce.io -- with no exception raised on the Python
+# side. This threshold is a heuristic (based on the commonly-cited safe/portable URL
+# length across browsers and OS `open`/`webbrowser.open` implementations), not an exact
+# limit: URLs somewhat longer than this may still work depending on the browser/OS.
 VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
 def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
@@ -227,10 +234,7 @@ def build_neuroglancer_config(
     spatial_target_y, spatial_target_z, spatial_rotation_x, spatial_rotation_y,
     spatial_rotation_z, spatial_rotation_orbit
         Initial values for the corresponding spatial coordination types, linked
-        across the Neuroglancer and layerControllerBeta views. Defaults match
-        `view_precomputed_in_vitessce`'s hardcoded values (3D rendering, camera
-        centered at the origin with no rotation) — override any of these to
-        start the view in a different state.
+        across the Neuroglancer and layerControllerBeta views. 
     use_web_app
         If None (default), auto-detected: True when running outside a Jupyter
         notebook (plain script or terminal), False when running inside one. Set
