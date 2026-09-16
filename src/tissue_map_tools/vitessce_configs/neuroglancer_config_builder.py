@@ -5,7 +5,7 @@ import colorsys
 from pathlib import Path
 from cloudvolume import CloudVolume
 
-from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec
+from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec, SpatialDataObsSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 from tissue_map_tools.view import compute_initial_camera_state
@@ -45,7 +45,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
     if spec.obs_sets_csv is not None:
         _add_tabular(dataset, spec.obs_sets_csv)
         added_obs_sets = True
-    elif resolved_ids:
+    elif resolved_ids and spec.auto_generate_obs_sets:
         set_name = spec.obs_set_name or spec.label or spec.file_uid
         dataset.add_object(CsvWrapper(
             csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, for_web_app=use_web_app),
@@ -104,6 +104,23 @@ def _add_tabular(dataset, spec: TabularObsSpec):
         coordination_values=spec.coordination_values,
     ))
 
+from vitessce import SpatialDataWrapper
+
+def _add_spatialdata(dataset, spec: SpatialDataObsSpec) -> bool:
+    coordination_values = {"obsType": spec.obs_type}
+    if spec.feature_type is not None:
+        coordination_values["featureType"] = spec.feature_type
+    dataset.add_object(SpatialDataWrapper(
+        sdata_path=spec.sdata_path,
+        sdata_url=spec.sdata_url,
+        table_path=spec.table_path,
+        obs_feature_matrix_path=spec.obs_feature_matrix_path,
+        obs_set_paths=spec.obs_set_paths,
+        obs_set_names=spec.obs_set_names,
+        coordination_values=coordination_values,
+    ))
+    return spec.obs_set_paths is not None  # whether this contributed real obsSets
+
 def make_obs_set_csv_data_url(
     ids: list[str], set_name: str, set_column: str = "Segment Type", for_web_app: bool = False,
 ) -> str:
@@ -151,6 +168,7 @@ def build_neuroglancer_config(
     spatial_rotation_z: float = 0,
     spatial_rotation_orbit: float = 0,
     use_web_app: bool | None = None,
+    spatialdata_obs: list[SpatialDataObsSpec] = (),
 ):
     """
     Build a Vitessce Neuroglancer config from one or more segmentation, point
@@ -225,9 +243,10 @@ def build_neuroglancer_config(
 
     for t in tabular_obs:
         _add_tabular(dataset, t)
+    spatialdata_added_obs_sets = [_add_spatialdata(dataset, s) for s in spatialdata_obs]
     seg_results = [_add_segmentation(dataset, s, use_web_app) for s in segmentations]
     seg_channels = [channel for channel, _ in seg_results]
-    any_obs_sets = any(added for _, added in seg_results)
+    any_obs_sets = any(added for _, added in seg_results) or any(spatialdata_added_obs_sets)
 
     point_layers = [_add_annotation(dataset, a) for a in annotations]
 
