@@ -26,20 +26,22 @@ VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
 def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
     resolved_ids = spec.segments
-    if resolved_ids is None:
+    # Only discover the full mesh ID list when we're actually going to build a
+    # static obsSets/obsColors CSV from it. on-demand-loading case) need no upfront
+    # ID list at all — colors and visible segments are resolved per-viewport at render time,
+    #  Skipping this avoids the CloudVolume + shard-file scan entirely for that case.
+    if resolved_ids is None and spec.auto_generate_obs_sets:
         cv_path = spec.data_path or spec.data_url
         if cv_path:
             cv = CloudVolume(cloudpath=cv_path)
             mesh_subpath = cv.meta.info.get("mesh")
             if mesh_subpath is not None:
                 resolved_ids = get_ids_from_mesh_files(
-                    root_data_path=cv_path,
-                    data_path=Path(cv_path) / mesh_subpath,
+                    root_data_path=cv_path, data_path=Path(cv_path) / mesh_subpath,
                 )
     resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
     dataset.add_object(ObsSegmentationsNgPrecomputedWrapper(
-        data_path=spec.data_path, 
-        data_url=spec.data_url,
+        data_path=spec.data_path, data_url=spec.data_url,
         coordination_values={"fileUid": spec.file_uid},
         options=spec.options or None,
     ))
@@ -58,7 +60,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         added_obs_sets = True
 
     channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
-    if resolved_ids:
+    if resolved_ids or spec.obs_color_encoding == "geneSelection":
         channel[ct.OBS_COLOR_ENCODING] = spec.obs_color_encoding
     if spec.spatial_channel_color is not None:
         channel["spatialChannelColor"] = spec.spatial_channel_color
