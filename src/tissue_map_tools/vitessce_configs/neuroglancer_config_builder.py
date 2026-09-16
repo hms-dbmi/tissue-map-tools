@@ -25,7 +25,7 @@ VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
     resolved_ids = spec.segments
     if resolved_ids is None:
-        cv_path = spec.local_path or spec.data_url
+        cv_path = spec.data_path or spec.data_url
         if cv_path:
             cv = CloudVolume(cloudpath=cv_path)
             mesh_subpath = cv.meta.info.get("mesh")
@@ -36,7 +36,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
                 )
     resolved_ids = [str(i) for i in (resolved_ids or []) if str(i) != "0"]
     dataset.add_object(ObsSegmentationsNgPrecomputedWrapper(
-        data_path=spec.local_path, 
+        data_path=spec.data_path, 
         data_url=spec.data_url,
         coordination_values={"fileUid": spec.file_uid},
         options=spec.options or None,
@@ -46,7 +46,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         _add_tabular(dataset, spec.obs_sets_csv)
         added_obs_sets = True
     elif resolved_ids and spec.auto_generate_obs_sets:
-        set_name = spec.obs_set_name or spec.label or spec.file_uid
+        set_name = spec.obs_set_name or spec.spatial_layer_label or spec.file_uid
         dataset.add_object(CsvWrapper(
             csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, for_web_app=use_web_app),
             data_type="obsSets",
@@ -66,14 +66,14 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         "fileUid": spec.file_uid,
         "spatialLayerOpacity": 1,
         "spatialLayerVisible": True,
-        "spatialLayerLabel": spec.label or spec.file_uid,
+        "spatialLayerLabel": spec.spatial_layer_label or spec.file_uid,
         "segmentationChannel": CL([channel]),
     }
     return channel_dict, added_obs_sets
 
 def _add_annotation(dataset, spec: AnnotationLayerSpec):
     dataset.add_object(ObsPointsNgAnnotationsWrapper(
-        data_path=spec.local_path,
+        data_path=spec.data_path,
         data_url=spec.data_url,
         coordination_values={
             "fileUid": spec.file_uid,
@@ -87,11 +87,11 @@ def _add_annotation(dataset, spec: AnnotationLayerSpec):
         "obsType": spec.obs_type,
         "spatialLayerOpacity": 1,
         "spatialLayerVisible": True,
-        "spatialLayerColor": spec.color,
-        "spatialPointStrokeWidth": spec.stroke_width,
-        "spatialLayerLabel": spec.label or spec.file_uid,
+        "spatialLayerColor": spec.spatial_layer_color,
+        "spatialPointStrokeWidth": spec.spatial_point_stroke_width,
+        "spatialLayerLabel": spec.spatial_layer_label or spec.file_uid,
         "featureType": spec.feature_type, 
-        ct.OBS_COLOR_ENCODING: spec.color_encoding,
+        ct.OBS_COLOR_ENCODING: spec.obs_color_encoding,
     }
     if spec.feature_value_colormap is not None:
         channel[ct.FEATURE_VALUE_COLORMAP] = spec.feature_value_colormap
@@ -183,7 +183,7 @@ def build_neuroglancer_config(
     annotation, and tabular obs (CSV / spatialdata.zarr) layers, and return it
     as a ready viewer - generalized to multiple layers of each kind.
 
-    Local vs. remote layers are decided per-spec (`local_path` vs. `data_url`
+    Local vs. remote layers are decided per-spec (`data_path` vs. `data_url`
     on each `SegmentationLayerSpec`/`AnnotationLayerSpec`) rather than by a
     single flag for the whole config, since a multi-layer config may mix
     local and already-remote sources.

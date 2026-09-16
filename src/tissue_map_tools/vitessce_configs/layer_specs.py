@@ -13,13 +13,13 @@ class TabularObsSpec:
 @dataclass
 class SegmentationLayerSpec:
     file_uid: str
-    local_path: str | None = None
+    data_path: str | None = None
     data_url: str | None = None
     obs_type: str = "cell"
-    label: str | None = None
+    spatial_layer_label: str | None = None
     options: dict = field(default_factory=dict)          # e.g. {"dimensions": {...}, "segments": [...], "segmentColors": {...}}
     spatial_channel_color: list[int] | None = None
-    color_encoding: str = "obsColors"                     # OBS_COLOR_ENCODING values
+    obs_color_encoding: str = "obsColors"                     # OBS_COLOR_ENCODING values
     feature_type: str | None = None
     feature_value_type: str | None = None
     feature_selection: list[str] | None = None
@@ -36,8 +36,8 @@ class SegmentationLayerSpec:
     """Optional user-supplied obsSets TabularObsSpec for this layer. If not
     given, one is auto-generated from resolved segment ids (explicit
     `segments`, or auto-discovered via get_ids_from_mesh_files), assigning
-    every segment to a single set named `obs_set_name` (or `label`/`file_uid`)."""
-    obs_set_name: str = "obsSet"
+    every segment to a single set named `obs_set_name` (or `spatial_layer_label`/`file_uid`)."""
+    obs_set_name: str = "Cell Sets"
     auto_generate_obs_sets: bool = True
     """Set False when real per-cell obsSets are already supplied elsewhere
     (e.g. via spatialdata_obs) for this obsType — otherwise the auto-generated
@@ -50,17 +50,17 @@ class SegmentationLayerSpec:
 @dataclass
 class AnnotationLayerSpec:
     file_uid: str
-    local_path: str | None = None
+    data_path: str | None = None
     data_url: str | None = None
     obs_type: str = "cell"
     feature_type: str = "gene"
-    label: str | None = None
-    color: list[int] | None = None
-    color_encoding: str = "geneSelection"
+    spatial_layer_label: str | None = None
+    spatial_layer_color: list[int] | None = None
+    obs_color_encoding: str = "geneSelection"
     feature_selection: list[str] | None = None
     feature_value_colormap: str | None = None
     feature_value_colormap_range: tuple[float, float] | None = None
-    stroke_width: float = 0.2
+    spatial_point_stroke_width: float = 0.1
     options: dict = field(default_factory=dict)           # featureIndexProp, pointIndexProp, transform, quantitativeColorProp, quantitativeColorMax, projectionAnnotationSpacing, ...
 
 
