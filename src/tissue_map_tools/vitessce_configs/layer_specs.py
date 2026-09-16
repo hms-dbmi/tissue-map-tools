@@ -18,7 +18,7 @@ class SegmentationLayerSpec:
     obs_type: str = "cell"
     label: str | None = None
     options: dict = field(default_factory=dict)          # e.g. {"dimensions": {...}, "segments": [...], "segmentColors": {...}}
-    channel_color: list[int] | None = None
+    spatial_channel_color: list[int] | None = None
     color_encoding: str = "obsColors"                     # OBS_COLOR_ENCODING values
     feature_type: str | None = None
     feature_value_type: str | None = None
@@ -42,6 +42,7 @@ class SegmentationLayerSpec:
     """Set False when real per-cell obsSets are already supplied elsewhere
     (e.g. via spatialdata_obs) for this obsType — otherwise the auto-generated
     single mesh-id set is redundant alongside the real ones."""
+    obs_color_encoding: str = "cellSetSelection"
     
 
 

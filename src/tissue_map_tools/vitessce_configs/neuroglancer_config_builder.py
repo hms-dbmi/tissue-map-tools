@@ -56,8 +56,11 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         added_obs_sets = True
 
     channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
-    if added_obs_sets:
-        channel[ct.OBS_COLOR_ENCODING] = "cellSetSelection"
+
+    if resolved_ids:
+        channel[ct.OBS_COLOR_ENCODING] = spec.obs_color_encoding
+    if spec.spatial_channel_color is not None:
+        channel["spatialChannelColor"] = spec.spatial_channel_color
 
     channel_dict = {
         "fileUid": spec.file_uid,
