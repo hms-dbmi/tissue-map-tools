@@ -79,7 +79,7 @@ def _add_annotation(dataset, spec: AnnotationLayerSpec):
         },
         options=spec.options or None,
     ))
-    return {
+    channel = {
         "fileUid": spec.file_uid,
         "obsType": spec.obs_type,
         "spatialLayerOpacity": 1,
@@ -87,12 +87,17 @@ def _add_annotation(dataset, spec: AnnotationLayerSpec):
         "spatialLayerColor": spec.color,
         "spatialPointStrokeWidth": spec.stroke_width,
         "spatialLayerLabel": spec.label or spec.file_uid,
+        "featureType": spec.feature_type, 
         ct.OBS_COLOR_ENCODING: spec.color_encoding,
-        ct.FEATURE_VALUE_COLORMAP: spec.feature_value_colormap,
-        ct.FEATURE_VALUE_COLORMAP_RANGE: spec.feature_value_colormap_range,
-        ct.FEATURE_SELECTION: spec.feature_selection,
-        "featureFilterMode": "featureSelection" if spec.feature_selection else None,
     }
+    if spec.feature_value_colormap is not None:
+        channel[ct.FEATURE_VALUE_COLORMAP] = spec.feature_value_colormap
+    if spec.feature_value_colormap_range is not None:
+        channel[ct.FEATURE_VALUE_COLORMAP_RANGE] = spec.feature_value_colormap_range
+    if spec.feature_selection is not None:
+        channel[ct.FEATURE_SELECTION] = spec.feature_selection
+        channel["featureFilterMode"] = "featureSelection"
+    return channel
 
 
 def _add_tabular(dataset, spec: TabularObsSpec):

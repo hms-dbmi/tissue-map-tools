@@ -82,3 +82,6 @@ class SpatialDataObsSpec:
     obs_feature_matrix_path: str | None = None    # e.g. "X"
     obs_set_paths: list[str] | None = None        # e.g. ["obs/cluster"]
     obs_set_names: list[str] | None = None        # e.g. ["Cell Types"]
+    obs_feature_matrix_path: str | None = None
+    """Full path to the expression matrix within the .sdata.zarr store, e.g.
+    tables/gene_expression_baysor/X """
