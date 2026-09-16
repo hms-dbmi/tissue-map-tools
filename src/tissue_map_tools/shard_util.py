@@ -31,9 +31,8 @@ def get_ids_from_mesh_files(
     list[int]
         list of mesh IDs found in the shard files
     """
-    root_data_path = Path(root_data_path)
-    data_path = Path(data_path)
-    cloudpath = str(root_data_path)
+    is_remote = str(root_data_path).startswith(("http://", "https://", "gs://", "s3://"))
+    cloudpath = str(root_data_path) if is_remote else str(Path(root_data_path))
     cv = CloudVolume(cloudpath=cloudpath)
     meta = cv.mesh.meta
     cache = cv.mesh.cache

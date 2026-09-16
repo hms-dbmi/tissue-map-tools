@@ -1,7 +1,13 @@
 import socket
 from cloudvolume import CloudVolume
 import numpy as np
+import json
+from pathlib import Path
+
+from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
+
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
+
 def docstring_parameter(**kw):
     """Decorator to format docstrings with keyword arguments."""
 
@@ -153,4 +159,3 @@ def compute_initial_camera_state(
         "projectionScale": projection_scale,
         "projectionOrientation": list(projection_orientation),
     }
-

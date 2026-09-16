@@ -1,23 +1,18 @@
 import webbrowser
 import warnings
 from typing import Any
-import colorsys
 from pathlib import Path
 from cloudvolume import CloudVolume
 
 from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec, SpatialDataObsSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
-from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
-from tissue_map_tools.view import compute_initial_camera_state
 from vitessce import (
     VitessceConfig, CoordinationLevel as CL, CoordinationType as ct,
     DataType as dt, hconcat, vconcat, get_initial_coordination_scope_prefix,
     CsvWrapper, ObsSegmentationsNgPrecomputedWrapper, ObsPointsNgAnnotationsWrapper,
-    make_ids_csv_data_url, make_colors_csv_data_url,
 )
 
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
-from vitessce import make_ids_csv_data_url, make_colors_csv_data_url
 from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 
 # `VitessceConfig.web_app()` embeds the *entire* config (including inline `data:` CSV
@@ -63,11 +58,21 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         added_obs_sets = True
 
     channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
-
     if resolved_ids:
         channel[ct.OBS_COLOR_ENCODING] = spec.obs_color_encoding
     if spec.spatial_channel_color is not None:
         channel["spatialChannelColor"] = spec.spatial_channel_color
+    if spec.obs_color_encoding == "geneSelection":
+        if spec.feature_type is not None:
+            channel["featureType"] = spec.feature_type
+        if spec.feature_value_type is not None:
+            channel["featureValueType"] = spec.feature_value_type
+        if spec.feature_selection is not None:
+            channel[ct.FEATURE_SELECTION] = spec.feature_selection
+        if spec.feature_value_colormap is not None:
+            channel[ct.FEATURE_VALUE_COLORMAP] = spec.feature_value_colormap
+        if spec.feature_value_colormap_range is not None:
+            channel[ct.FEATURE_VALUE_COLORMAP_RANGE] = spec.feature_value_colormap_range
 
     channel_dict = {
         "fileUid": spec.file_uid,
@@ -115,7 +120,7 @@ def _add_tabular(dataset, spec: TabularObsSpec):
         csv_path=spec.csv_path,
         csv_url=spec.csv_url,
         data_type=spec.data_type,
-        options=spec.options,
+        options=spec.options or None, 
         coordination_values=spec.coordination_values,
     ))
 
@@ -143,11 +148,6 @@ def make_obs_set_csv_data_url(
     Build a `data:` URL containing a small inline obsSets.csv with an `id`
     column and a single categorical column (`set_column`), assigning every
     id to the same group label (`set_name`).
-
-    Mirrors vitessce.make_ids_csv_data_url / make_colors_csv_data_url's
-    pattern exactly (csv writer -> quote -> data:text/csv,...) — there is no
-    built-in equivalent in vitessce-python today, though make_ids_csv_data_url's
-    own docstring anticipates an obsSets.csv use case like this one.
     """
     import csv, io
     from urllib.parse import quote
