@@ -24,7 +24,7 @@ from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 # limit: URLs somewhat longer than this may still work depending on the browser/OS.
 VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
-def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, skip_segment_discovery=mesh_load_projection_scale_threshold is not None):
+def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, skip_segment_discovery: bool = False):
     resolved_ids = spec.segments
     # Discovery finds every real segment id via CloudVolume + mesh shard files, needed
     # to auto-generate a single-group obsSets CSV. Skipped when the caller already
@@ -32,7 +32,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, s
     # is active (skip_segment_discovery, driven by the config-wide
     # mesh_load_projection_scale_threshold) — the viewport resolves visible segments
     # dynamically at render time in that case, so no upfront id list is needed.
-    if resolved_ids is None and spec.obs_sets_csv is None and not spec.skip_segment_discovery:
+    if resolved_ids is None and spec.obs_sets_csv is None and not skip_segment_discovery:
         cv_path = spec.data_path or spec.data_url
         if cv_path:
             cv = CloudVolume(cloudpath=cv_path)

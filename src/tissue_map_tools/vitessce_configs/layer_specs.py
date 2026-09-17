@@ -17,7 +17,7 @@ class SegmentationLayerSpec:
     data_url: str | None = None
     obs_type: str = "cell"
     spatial_layer_label: str | None = None
-    options: dict = field(default_factory=dict)          # e.g. {"dimensions": {...}, "segments": [...], "segmentColors": {...}}
+    options: dict = field(default_factory=dict)          # e.g. {"dimensions": {...}}
     spatial_channel_color: list[int] | None = None
     obs_color_encoding: str = "obsColors"                     # OBS_COLOR_ENCODING values
     feature_type: str | None = None

@@ -38,6 +38,34 @@ vc
 Local data: use `data_path=` instead of `data_url=` on any spec — Vitessce
 serves it automatically, no manual server setup needed.
 
+
+**`build_neuroglancer_config` — all parameters**
+
+*Data*
+- `segmentations: list[SegmentationLayerSpec] = ()` — segmentation/mesh layers.
+- `annotations: list[AnnotationLayerSpec] = ()` — point/transcript annotation layers.
+- `tabular_obs: list[TabularObsSpec] = ()` — dataset-wide CSV obs sources (obsSets, obsFeatureMatrix, obsEmbedding).
+- `spatialdata_obs: list[SpatialDataObsSpec] = ()` — obs sources read from a `.sdata.zarr` store.
+
+*Config identity*
+- `name: str = "Precomputed data"` — config display name.
+- `schema_version: str = "1.0.17"` — Vitessce config schema version.
+
+*Camera / view*
+- `initial_camera_state: dict | None = None` — if you don't have one, compute it with `compute_initial_camera_state(data_path=...)` (from `tissue_map_tools.view`) rather than guessing values by hand; it fits the camera to the dataset's actual mesh/annotation bounds. If omitted entirely, Neuroglancer falls back to its own default framing, which may not point at any real data.
+- `show_axis_lines: bool | None = None` — Neuroglancer view prop to hide/unhide the coordiante axis lines.
+- `mesh_load_projection_scale_threshold: float | None = None` — enables on-demand mesh loading (§4); also skips mesh-ID discovery for every segmentation when set.
+- `layer_per_feature_for_points: bool | None = None` — `layerControllerBeta` prop for a per-layer gene picker on point layers.
+- `extra_view_types: list[str] = ()` — additional views (e.g. `"featureList"`); `"obsSets"` is added automatically whenever needed.
+
+*Initial spatial coordination* (all default `0`, shared across the neuroglancer + layerControllerBeta views)
+- `spatial_rendering_mode: str = "3D"`
+- `spatial_zoom`, `spatial_target_t`, `spatial_target_x`, `spatial_target_y`, `spatial_target_z`
+- `spatial_rotation_x`, `spatial_rotation_y`, `spatial_rotation_z`, `spatial_rotation_orbit`
+
+*Output*
+- `use_web_app: bool | None = None` — `None` auto-detects notebook vs. script; `False` returns an inline `VitessceWidget`, `True` returns the `VitessceConfig` and opens a browser tab (blocks the cell until you press Enter).
+
 ## 3. Common options, by spec
 Defined in [`src/tissue_map_tools/vitessce_configs/layer_specs.py`](../src/tissue_map_tools/vitessce_configs/layer_specs.py):
 **`SegmentationLayerSpec`**
