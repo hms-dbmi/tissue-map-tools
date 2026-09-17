@@ -117,6 +117,36 @@ view_precomputed_in_napari(
 )
 ```
 
+
+### Visualize in Vitessce
+For more details to build complex views using Vitessce, please see the example notebooks and documentation:
+[Neuroglancer config builder](docs/neuroglancer_config_builder.md)
+
+```python
+from tissue_map_tools.utils import compute_initial_camera_state
+from tissue_map_tools.vitessce_configs.layer_specs import SegmentationLayerSpec
+from tissue_map_tools.vitessce_configs.neuroglancer_config_builder import (
+    build_neuroglancer_config,
+)
+
+use_web_app = None
+
+initial_camera_state = compute_initial_camera_state(
+    data_path=str(precomputed_path),
+)
+
+vc = build_neuroglancer_config(
+    name="Precomputed data",
+    segmentations=[
+        SegmentationLayerSpec(file_uid="segmentation", data_path=str(precomputed_path)),
+    ],
+    initial_camera_state=initial_camera_state,
+    use_web_app=use_web_app,
+)
+
+vc
+```
+
 ---
 
 ## Documentation
