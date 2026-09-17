@@ -208,8 +208,7 @@ uv add --group dev <package>
 
 Testing 
 ```
-  pytest tests/vitessce_configs/ -v
-  pytest tests/data_model/ -v
+    uv run python -m pytest
 ```
 
 Building for distribution:
