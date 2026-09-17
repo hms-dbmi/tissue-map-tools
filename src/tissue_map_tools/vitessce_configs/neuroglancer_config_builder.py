@@ -10,9 +10,9 @@ from vitessce import (
     VitessceConfig, CoordinationLevel as CL, CoordinationType as ct,
     DataType as dt, hconcat, vconcat, get_initial_coordination_scope_prefix,
     CsvWrapper, ObsSegmentationsNgPrecomputedWrapper, ObsPointsNgAnnotationsWrapper,
+    SpatialDataWrapper,
 )
 
-from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 
 # `VitessceConfig.web_app()` embeds the *entire* config (including inline `data:` CSV
@@ -24,13 +24,15 @@ from tissue_map_tools.utils import is_running_in_notebook, find_free_port
 # limit: URLs somewhat longer than this may still work depending on the browser/OS.
 VITESSCE_WEB_APP_URL_WARN_LENGTH = 8_000
 
-def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
+def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, skip_segment_discovery=mesh_load_projection_scale_threshold is not None):
     resolved_ids = spec.segments
-    # Only discover the full mesh ID list when we're actually going to build a
-    # static obsSets/obsColors CSV from it. on-demand-loading case) need no upfront
-    # ID list at all — colors and visible segments are resolved per-viewport at render time,
-    #  Skipping this avoids the CloudVolume + shard-file scan entirely for that case.
-    if resolved_ids is None and spec.auto_generate_obs_sets:
+    # Discovery finds every real segment id via CloudVolume + mesh shard files, needed
+    # to auto-generate a single-group obsSets CSV. Skipped when the caller already
+    # supplied obs_sets_csv (nothing to discover for), or when on-demand mesh loading
+    # is active (skip_segment_discovery, driven by the config-wide
+    # mesh_load_projection_scale_threshold) — the viewport resolves visible segments
+    # dynamically at render time in that case, so no upfront id list is needed.
+    if resolved_ids is None and spec.obs_sets_csv is None and not spec.skip_segment_discovery:
         cv_path = spec.data_path or spec.data_url
         if cv_path:
             cv = CloudVolume(cloudpath=cv_path)
@@ -60,7 +62,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool):
         added_obs_sets = True
 
     channel = {"obsType": spec.obs_type, "spatialChannelVisible": True}
-    if resolved_ids or spec.obs_color_encoding == "geneSelection":
+    if added_obs_sets or spec.obs_color_encoding == "geneSelection":
         channel[ct.OBS_COLOR_ENCODING] = spec.obs_color_encoding
     if spec.spatial_channel_color is not None:
         channel["spatialChannelColor"] = spec.spatial_channel_color
@@ -125,8 +127,6 @@ def _add_tabular(dataset, spec: TabularObsSpec):
         options=spec.options or None, 
         coordination_values=spec.coordination_values,
     ))
-
-from vitessce import SpatialDataWrapper
 
 def _add_spatialdata(dataset, spec: SpatialDataObsSpec) -> bool:
     coordination_values = {"obsType": spec.obs_type}
@@ -225,6 +225,7 @@ def build_neuroglancer_config(
         Optional float passed to the Neuroglancer view via
         `set_props(meshLoadProjectionScaleThreshold=...)`. Maximum projectionScale
         at which meshes start loading — higher means meshes load at lower zoom levels.
+        Setting it disables mesh-ID discovery for every segmentation layer - in support of on-demand mesh loading
     layer_per_feature_for_points
         Optional bool passed to the `layerControllerBeta` view via
         `set_props(layerPerFeatureForPoints=...)`.
@@ -242,6 +243,9 @@ def build_neuroglancer_config(
         notebook (plain script or terminal), False when running inside one. Set
         explicitly to override this — e.g. force True in a notebook if you
         specifically want the `vitessce.io` browser tab instead of the inline widget.
+    spatialdata_obs
+        SpatialData obs sources (feature matrix, cell sets) read directly from a .sdata.zarr store. 
+        Empty by default.
 
     Returns
     -------
@@ -258,7 +262,11 @@ def build_neuroglancer_config(
     for t in tabular_obs:
         _add_tabular(dataset, t)
     spatialdata_added_obs_sets = [_add_spatialdata(dataset, s) for s in spatialdata_obs]
-    seg_results = [_add_segmentation(dataset, s, use_web_app) for s in segmentations]
+    seg_results = [
+    _add_segmentation(dataset, s, use_web_app,
+                       skip_segment_discovery=mesh_load_projection_scale_threshold is not None)
+        for s in segmentations
+    ]
     seg_channels = [channel for channel, _ in seg_results]
     any_obs_sets = any(added for _, added in seg_results) or any(spatialdata_added_obs_sets)
 

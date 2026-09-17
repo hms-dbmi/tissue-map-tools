@@ -33,19 +33,18 @@ class SegmentationLayerSpec:
     # """Optional dict mapping segment ID (as a string) to a hex color. If not
     # provided, a default HSV rainbow color is generated per segment."""
     obs_sets_csv: TabularObsSpec | None = None
-    """Optional user-supplied obsSets TabularObsSpec for this layer. If not
-    given, one is auto-generated from resolved segment ids (explicit
-    `segments`, or auto-discovered via get_ids_from_mesh_files), assigning
-    every segment to a single set named `obs_set_name` (or `spatial_layer_label`/`file_uid`)."""
-    obs_set_name: str = "Cell Sets"
+    """User-supplied obsSets TabularObsSpec for this layer's set/coloring data.
+    If None (default) and auto_generate_obs_sets is True, one is auto-generated
+    instead, assigning every resolved segment id to a single set named
+    obs_set_name."""
     auto_generate_obs_sets: bool = True
-    """Set False when real per-cell obsSets are already supplied elsewhere
-    (e.g. via spatialdata_obs) for this obsType — otherwise the auto-generated
-    single mesh-id set is redundant alongside the real ones."""
+    """Whether to auto-generate the single-set obsSets CSV described above when
+    obs_sets_csv is not provided. Set False when real sets come from elsewhere
+    (e.g. a spatialdata_obs entry or csv) — otherwise the auto-generated set is
+    redundant alongside the real ones."""
+    obs_set_name: str = "Cell Sets"
     obs_color_encoding: str = "cellSetSelection"
     
-
-
 
 @dataclass
 class AnnotationLayerSpec:

@@ -44,7 +44,11 @@ Defined in [`src/tissue_map_tools/vitessce_configs/layer_specs.py`](../src/tissu
 - `obs_color_encoding`: `"cellSetSelection"` (default, colors by named groups) or `"geneSelection"` (colors by a gene's expression).
 - With no `segments` given, IDs are auto-discovered and grouped into one set.
 - Pass `obs_sets_csv=TabularObsSpec(...)` to use your own groups instead.
-- Set `auto_generate_obs_sets=False` if real sets come from a `spatialdata_obs` entry, or you're using `geneSelection` (skips ID discovery entirely — see §5).
+- Set `auto_generate_obs_sets=False` when real sets come from elsewhere (`obs_sets_csv` or a `spatialdata_obs` entry) — otherwise you get a redundant auto-generated set alongside the real ones. It only controls the auto-generated CSV, not mesh-ID discovery — discovery is skipped separately, and automatically, whenever `mesh_load_projection_scale_threshold` is set on the config (on-demand loading — see §4).
+
+
+
+**Not needed when `obs_sets_csv` is set** — that already takes priority over auto-generation on its own.
 
 **`AnnotationLayerSpec`**
 - `feature_selection`, `feature_value_colormap`, `feature_value_colormap_range` — for gene-driven point coloring.
@@ -120,7 +124,7 @@ build_neuroglancer_config(..., mesh_load_projection_scale_threshold=1200)
 
 **`obs_feature_matrix_path` is not relative to `table_path`** — pass the
   full path.
-  
+
 **`obsColorEncoding: "obsColors"` isn't supported here** — it needs a
   per-segment color CSV this module doesn't generate, and separately hits
   [vitessce-python#517](https://github.com/vitessce/vitessce-python/issues/517)
