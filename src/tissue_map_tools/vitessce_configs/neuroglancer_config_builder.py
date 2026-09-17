@@ -3,12 +3,14 @@ import warnings
 from typing import Any
 from pathlib import Path
 from cloudvolume import CloudVolume
+import csv, io
+from urllib.parse import quote
 
 from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec, SpatialDataObsSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from vitessce import (
     VitessceConfig, CoordinationLevel as CL, CoordinationType as ct,
-    DataType as dt, hconcat, vconcat, get_initial_coordination_scope_prefix,
+    hconcat, vconcat, get_initial_coordination_scope_prefix,
     CsvWrapper, ObsSegmentationsNgPrecomputedWrapper, ObsPointsNgAnnotationsWrapper,
     SpatialDataWrapper,
 )
@@ -151,9 +153,6 @@ def make_obs_set_csv_data_url(
     column and a single categorical column (`set_column`), assigning every
     id to the same group label (`set_name`).
     """
-    import csv, io
-    from urllib.parse import quote
-
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["id", set_column])
@@ -163,7 +162,8 @@ def make_obs_set_csv_data_url(
         encoded = quote(encoded, safe="")
     return f"data:text/csv,{encoded}"
 
-def build_neuroglancer_config(
+
+def assemble_neuroglancer_config(
     segmentations: list[SegmentationLayerSpec] = (),
     annotations: list[AnnotationLayerSpec] = (),
     tabular_obs: list[TabularObsSpec] = (),
@@ -184,18 +184,15 @@ def build_neuroglancer_config(
     spatial_rotation_y: float = 0,
     spatial_rotation_z: float = 0,
     spatial_rotation_orbit: float = 0,
-    use_web_app: bool | None = None,
+    use_web_app: bool = False,
     spatialdata_obs: list[SpatialDataObsSpec] = (),
-):
+) -> VitessceConfig:
     """
-    Build a Vitessce Neuroglancer config from one or more segmentation, point
-    annotation, and tabular obs (CSV / spatialdata.zarr) layers, and return it
-    as a ready viewer - generalized to multiple layers of each kind.
-
-    Local vs. remote layers are decided per-spec (`data_path` vs. `data_url`
-    on each `SegmentationLayerSpec`/`AnnotationLayerSpec`) rather than by a
-    single flag for the whole config, since a multi-layer config may mix
-    local and already-remote sources.
+    Build a VitessceConfig from segmentation/annotation/tabular/spatialdata
+    layer specs and return it directly -- no widget, no web_app, no serving,
+    no blocking. This is the shared core used by both build_neuroglancer_config
+    (the notebook/script entry point, which adds widget/web_app/blocking on
+    top) and tests, which need the bare config without side effects.
 
     Parameters
     ----------
@@ -207,9 +204,11 @@ def build_neuroglancer_config(
         Point annotation layers to add, each as an `obsPoints.ng-annotations` file
         wired up via `pointLayer` coordination. Empty by default.
     tabular_obs
-        CSV/spatialdata.zarr obs sources (obsSets, obsEmbedding, obsFeatureMatrix)
-        to add alongside the spatial layers, e.g. for a gene expression matrix or
-        cell-type sets. Empty by default.
+        CSV obs sources (obsSets, obsEmbedding, obsFeatureMatrix) to add
+        alongside the spatial layers, e.g. for a gene expression matrix or
+        cell-type sets read from a plain CSV. For the same kind of data
+        read from a .sdata.zarr store instead, use spatialdata_obs. Empty
+        by default.
     name
         Name of the Vitessce config. Defaults to `"Precomputed data"`.
     schema_version
@@ -239,19 +238,19 @@ def build_neuroglancer_config(
         Initial values for the corresponding spatial coordination types, linked
         across the Neuroglancer and layerControllerBeta views. 
     use_web_app
-        If None (default), auto-detected: True when running outside a Jupyter
-        notebook (plain script or terminal), False when running inside one. Set
-        explicitly to override this — e.g. force True in a notebook if you
-        specifically want the `vitessce.io` browser tab instead of the inline widget.
+        Whether the generated obsSets CSV `data:` URLs should be encoded for
+        embedding in a `vitessce.io` URL (True) or a locally-served widget
+        (False, default). This function never opens a browser or returns a
+        widget itself — see build_neuroglancer_config for that.
     spatialdata_obs
         SpatialData obs sources (feature matrix, cell sets) read directly from a .sdata.zarr store. 
         Empty by default.
 
     Returns
     -------
-    A Vitessce widget (via `VitessceConfig.widget()`) if `use_web_app=False`, or
-    the `VitessceConfig` object itself if `use_web_app=True` (after opening a
-    browser tab and blocking until the user presses Enter).
+    The assembled `VitessceConfig` object -- no widget, no serving, no
+    blocking. Pass it to `build_neuroglancer_config`'s tail (or call
+    `.widget()` / `.web_app()`) to actually view it.
     """
     if use_web_app is None:
         use_web_app = not is_running_in_notebook()
@@ -317,18 +316,27 @@ def build_neuroglancer_config(
 
     vc.layout(hconcat(ng_view, vconcat(lc_view, *extra_views)))
 
+    return vc
+
+
+def build_neuroglancer_config(*args, use_web_app: bool | None = None, **kwargs):
+    """
+        All other parameters are forwarded to assemble_neuroglancer_config --
+        see its docstring for segmentations/annotations/tabular_obs/spatialdata_obs,
+        camera/view options, and initial spatial coordination values.
+    """
+    if use_web_app is None:
+        use_web_app = not is_running_in_notebook()
+
+    vc = assemble_neuroglancer_config(*args, use_web_app=use_web_app, **kwargs)
+
     if use_web_app:
         web_app_port = find_free_port()
         vitessce_url = vc.web_app(port=web_app_port, open=False)
         if len(vitessce_url) > VITESSCE_WEB_APP_URL_WARN_LENGTH:
             warnings.warn(
                 f"The generated vitessce.io URL is {len(vitessce_url)} characters long, "
-                f"which exceeds the {VITESSCE_WEB_APP_URL_WARN_LENGTH}-character heuristic "
-                "threshold. This usually happens with many auto-discovered segments, "
-                "since every segment id/color is embedded inline in the URL. Pass an "
-                "explicit, smaller `segments` list on the SegmentationLayerSpec, or "
-                "use `use_web_app=False` for the notebook-inline widget instead, which "
-                "serves data over local HTTP rather than embedding it in the URL.",
+                f"which exceeds the {VITESSCE_WEB_APP_URL_WARN_LENGTH}-character heuristic threshold.",
                 stacklevel=2,
             )
         webbrowser.open(vitessce_url)

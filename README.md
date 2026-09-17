@@ -206,6 +206,12 @@ uv remove <package>
 uv add --group dev <package>
 ```
 
+Testing 
+```
+  pytest tests/vitessce_configs/ -v
+  pytest tests/data_model/ -v
+```
+
 Building for distribution:
 
 ```sh
