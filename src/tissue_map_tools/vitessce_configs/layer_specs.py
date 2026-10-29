@@ -85,3 +85,13 @@ class SpatialDataObsSpec:
     obs_feature_matrix_path: str | None = None
     """Full path to the expression matrix within the .sdata.zarr store, e.g.
     tables/gene_expression_baysor/X """
+
+
+
+@dataclass
+class LocationsLayerSpec:
+    obs_type: str
+    data_path: str | None = None
+    data_url: str | None = None
+    file_uid: str | None = None
+    options: dict | None = None
