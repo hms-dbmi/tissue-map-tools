@@ -109,16 +109,21 @@ def test_from_obj_with_ids_names_and_transform(tmp_path):
     assert properties["inline"]["properties"][0]["values"] == ["custom"]
 
 
-def test_overwrite(tmp_path):
+def test_existing_data_is_never_deleted(tmp_path):
     box = trimesh.creation.box()
     meshes = {1: (box.vertices, box.faces)}
     mesh_dir = tmp_path / "meshes"
     write_precomputed_legacy_meshes(meshes, mesh_dir)
     with pytest.raises(FileExistsError):
-        write_precomputed_legacy_meshes(meshes, mesh_dir)
-    write_precomputed_legacy_meshes({2: meshes[1]}, mesh_dir, overwrite=True)
-    assert not (mesh_dir / "1:0").exists()
-    assert (mesh_dir / "2:0").exists()
+        write_precomputed_legacy_meshes({2: meshes[1]}, mesh_dir)
+    assert (mesh_dir / "1:0").exists()
+    assert not (mesh_dir / "2:0").exists()
+
+    # an existing empty directory is fine
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    write_precomputed_legacy_meshes(meshes, empty_dir)
+    assert (empty_dir / "1:0").exists()
 
 
 @pytest.mark.parametrize(

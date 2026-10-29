@@ -8,7 +8,6 @@ For multi-resolution and/or sharded meshes, see `tissue_map_tools.igneous_conver
 """
 
 import json
-import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -75,7 +74,6 @@ def write_precomputed_legacy_meshes(
     precomputed_path: str | Path,
     segment_names: Mapping[int, str] | None = None,
     transform: ArrayLike | None = None,
-    overwrite: bool = False,
 ) -> None:
     """
     Write triangle meshes in the legacy single-resolution, unsharded precomputed format.
@@ -96,8 +94,11 @@ def write_precomputed_legacy_meshes(
         Optional 3x4 or 4x4 affine matrix applied to the vertices before writing.
         Neuroglancer interprets the vertex positions in nanometers, so for vertices in
         microns use, e.g., `np.diag([1000, 1000, 1000, 1])`.
-    overwrite
-        Whether to delete `precomputed_path` first if it already exists.
+
+    Notes
+    -----
+    Existing data is never deleted: a `FileExistsError` is raised if
+    `precomputed_path` exists and is not empty.
     """
     precomputed_path = Path(precomputed_path)
     transform = _parse_transform(transform)
@@ -112,13 +113,11 @@ def write_precomputed_legacy_meshes(
                 f"segment_names contains ids without a mesh: {sorted(missing)}."
             )
 
-    if precomputed_path.exists():
-        if not overwrite:
-            raise FileExistsError(
-                f"{precomputed_path} already exists; use overwrite=True to replace it."
-            )
-        shutil.rmtree(precomputed_path)
-    precomputed_path.mkdir(parents=True)
+    if precomputed_path.exists() and any(precomputed_path.iterdir()):
+        raise FileExistsError(
+            f"{precomputed_path} already exists and is not empty; remove it manually "
+            f"or choose another path."
+        )
 
     # encode everything before writing the info file, so that invalid meshes don't
     # leave a partially written dataset that looks valid
@@ -128,6 +127,8 @@ def write_precomputed_legacy_meshes(
         if transform is not None and vertices.ndim == 2 and vertices.shape[1] == 3:
             vertices = vertices @ transform[:, :3].T + transform[:, 3]
         fragments[segment_id] = encode_legacy_mesh_fragment(vertices, faces)
+
+    precomputed_path.mkdir(parents=True, exist_ok=True)
 
     for segment_id, fragment in fragments.items():
         fragment_name = f"{segment_id}:0:1"
@@ -166,7 +167,6 @@ def from_obj_to_precomputed_meshes(
     precomputed_path: str | Path,
     segment_names: Mapping[int, str] | None = None,
     transform: ArrayLike | None = None,
-    overwrite: bool = False,
 ) -> None:
     """
     Convert Wavefront OBJ files to legacy single-resolution, unsharded precomputed meshes.
@@ -188,8 +188,11 @@ def from_obj_to_precomputed_meshes(
         Optional 3x4 or 4x4 affine matrix applied to the vertices before writing.
         Neuroglancer interprets the vertex positions in nanometers, so for OBJ files in
         microns use, e.g., `np.diag([1000, 1000, 1000, 1])`.
-    overwrite
-        Whether to delete `precomputed_path` first if it already exists.
+
+    Notes
+    -----
+    Existing data is never deleted: a `FileExistsError` is raised if
+    `precomputed_path` exists and is not empty.
     """
     if not isinstance(obj_paths, Mapping):
         obj_paths = {i + 1: p for i, p in enumerate(obj_paths)}
@@ -210,5 +213,4 @@ def from_obj_to_precomputed_meshes(
         precomputed_path=precomputed_path,
         segment_names=segment_names,
         transform=transform,
-        overwrite=overwrite,
     )
