@@ -5,6 +5,7 @@ Constructs the meshes from the volumetric data and from the 2.5D shapes.
 import napari_spatialdata.constants.config
 import spatialdata as sd
 from pathlib import Path
+import numpy as np
 from numpy.random import default_rng
 
 from tissue_map_tools.igneous_converters import (  # noqa: F401
@@ -110,9 +111,18 @@ sdata["molecule_baysor"] = sd.models.PointsModel.parse(
 )
 
 # TODO: temporary workaround: raster data converted to precomputed expresses units in nm
-#  therefore let's multiply the points by 1000
+#  therefore let's convert the points from microns to nm. The raster converter rounds
+#  the voxel size to integer nm (e.g. 108.95 -> 109), so we rescale the points in the
+#  same way to keep them aligned with the voxels
+affine = sd.transformations.get_transformation(
+    sdata["membrane_labels"]
+).to_affine_matrix(input_axes=("x", "y", "z"), output_axes=("x", "y", "z"))
+voxel_size_um = dict(zip(["x", "y", "z"], np.diag(affine)[:3]))
 for ax in ["x", "y", "z"]:
-    sdata["molecule_baysor"][ax] = sdata["molecule_baysor"][ax] * 1000 + RNG.random()
+    nm_per_um = round(1000 * voxel_size_um[ax]) / voxel_size_um[ax]
+    sdata["molecule_baysor"][ax] = (
+        sdata["molecule_baysor"][ax] * nm_per_um + RNG.random()
+    )
 
 
 ##
