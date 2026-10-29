@@ -340,7 +340,7 @@ def from_spatialdata_points_to_precomputed_points(
 
     if isinstance(points, DaskDataFrame):
         points = points.compute()
-
+    validate_points_dataframe(points)
     spatial_columns = ["x", "y", "z"]
     xyz, kd_tree = get_coordinates_and_kd_tree(points)
     ##

@@ -90,6 +90,78 @@ def make_dtypes_compatible_with_precomputed_annotations(
     return df[old_column_order]
 
 
+ 
+def validate_points_dataframe(points: pd.DataFrame) -> None:
+    """
+    Check that a points dataframe can be written as precomputed point annotations.
+
+    All problems found are collected and reported together in a single `ValueError`,
+    instead of failing one at a time deep inside the conversion with unrelated errors
+    (e.g. a `KeyError` for a missing column, a SciPy error for NaN coordinates, or a
+    `TypeError` that names `ndarray` instead of the offending column).
+
+    Checks:
+
+    - the dataframe is not empty;
+    - the `x`, `y` and `z` columns exist;
+    - the coordinate columns have a supported numeric dtype and contain only finite
+      values (no NaN or inf);
+    - every other (property) column has a supported dtype, i.e. one of
+      `SUPPORTED_DTYPES`. Use `make_dtypes_compatible_with_precomputed_annotations()`
+      to convert common dtypes such as float64, int64, strings and bools.
+
+    Raises
+    ------
+    ValueError
+        If any check fails; the message lists every problem.
+    """
+    spatial_columns = ["x", "y", "z"]
+    problems: list[str] = []
+
+    if len(points) == 0:
+        problems.append("the dataframe is empty")
+
+    missing = [c for c in spatial_columns if c not in points.columns]
+    if missing:
+        problems.append(
+            f"missing coordinate column(s) {missing}; found columns "
+            f"{list(points.columns)}"
+        )
+
+    supported_names = {
+        np.dtype(d).name for d in SUPPORTED_DTYPES if d not in ("category", "object")
+    }
+    for col in spatial_columns:
+        if col not in points.columns:
+            continue
+        dtype = points[col].dtype
+        if dtype.name not in supported_names:
+            problems.append(
+                f"coordinate column '{col}' has unsupported dtype {dtype}"
+            )
+        elif np.issubdtype(dtype, np.floating) and not np.isfinite(
+            points[col].to_numpy()
+        ).all():
+            n_bad = int((~np.isfinite(points[col].to_numpy())).sum())
+            problems.append(f"coordinate column '{col}' has {n_bad} NaN/inf value(s)")
+
+    for col in points.columns:
+        if col in spatial_columns:
+            continue
+        dtype = points[col].dtype
+        if not (dtype == "category" or dtype.name in supported_names):
+            problems.append(f"property column '{col}' has unsupported dtype {dtype}")
+
+    if problems:
+        supported = sorted(supported_names | {"category"})
+        raise ValueError(
+            "Cannot write the points as precomputed annotations:\n  - "
+            + "\n  - ".join(problems)
+            + f"\nSupported dtypes: {supported}. Consider calling "
+            "make_dtypes_compatible_with_precomputed_annotations() on the dataframe "
+            "first (converts float64, int64, bool and string columns)."
+        )
+
 def from_pandas_column_to_annotation_property(
     df: pd.DataFrame, column: str
 ) -> AnnotationProperty:
