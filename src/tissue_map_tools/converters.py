@@ -11,6 +11,7 @@ from dask.dataframe import DataFrame as DaskDataFrame
 from numpy.random import default_rng
 import pandas as pd
 import json
+import warnings
 
 from tissue_map_tools.utils import docstring_parameter
 from tissue_map_tools.data_model.annotations import (
@@ -25,6 +26,7 @@ from tissue_map_tools.data_model.annotations import (
 )
 from tissue_map_tools.data_model.annotations_utils import (
     from_pandas_column_to_annotation_property,
+    validate_points_dataframe,
 )
 from tissue_map_tools.data_model.shard_utils import (
     compute_annotation_shard_params,
@@ -160,6 +162,9 @@ def from_ome_zarr_04_raster_to_precomputed_raster(
         # axes_index = {ax: i for i, ax in enumerate(axes)}
 
     transposed = _transpose_dask_data_for_cloudvolume(dask_data_scale0, axes=axes)
+    if is_labels:
+        transposed = ensure_segmentation_dtype_supported_by_neuroglancer(transposed)
+ 
 
     pixel_sizes = {
         axis: round(units_factor * scale_factors[axis]) for axis in ["x", "y", "z"]
@@ -176,6 +181,48 @@ def from_ome_zarr_04_raster_to_precomputed_raster(
         f"Converted OME-Zarr data from {ome_zarr_path} to the Precomputed format ("
         f"{layer_type}) at {precomputed_path} with pixel sizes {pixel_sizes} and axes {_get_axes_cloudvolume(axes)}."
     )
+
+def ensure_segmentation_dtype_supported_by_neuroglancer(
+    arr: dask.array.Array,
+) -> dask.array.Array:
+    """
+    Make sure a label array has a dtype that Neuroglancer can display.
+
+    Neuroglancer's precomputed segmentation layers read unsigned integer labels; a
+    signed `int64` volume is written to the info file without error but then does not
+    show up in the viewer (`int64` is not in Neuroglancer's data type enum). Signed
+    integer labels are therefore cast to the unsigned type of the same width (`int64`
+    -> `uint64`, `int32` -> `uint32`; `int16` and `int8` -> `uint32`), after checking
+    that no label is negative. Unsigned integer labels are returned unchanged.
+
+    Raises
+    ------
+    ValueError
+        If the labels are not integers, or if a signed array contains negative values.
+    """
+    dtype = arr.dtype
+    if not np.issubdtype(dtype, np.integer):
+        raise ValueError(
+            f"Labels must have an integer dtype to be displayed as a Neuroglancer "
+            f"segmentation, got {dtype}."
+        )
+    if np.issubdtype(dtype, np.unsignedinteger):
+        return arr
+    min_value = int(arr.min().compute())
+    if min_value < 0:
+        raise ValueError(
+            f"Labels have dtype {dtype} and contain negative values (min = "
+            f"{min_value}), which cannot be represented in Neuroglancer's unsigned "
+            "segmentation labels. Please remap the labels first."
+        )
+    target = np.uint64 if dtype.itemsize == 8 else np.uint32
+    warnings.warn(
+        f"Casting labels from {dtype} to {np.dtype(target)}: Neuroglancer does not "
+        f"support signed integer segmentation data.",
+        stacklevel=3,
+    )
+    return arr.astype(target)
+
 
 
 def _get_axes_cloudvolume(
@@ -228,6 +275,9 @@ def from_spatialdata_raster_to_precomputed_raster(
     )
 
     layer_type = "segmentation" if model == sd.models.Labels3DModel else "image"
+    if layer_type == "segmentation":
+        transposed = ensure_segmentation_dtype_supported_by_neuroglancer(transposed)
+ 
 
     affine = transformation.to_affine_matrix(
         input_axes=("x", "y", "z"), output_axes=("x", "y", "z")
