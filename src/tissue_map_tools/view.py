@@ -11,6 +11,7 @@ import numpy as np
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 from tissue_map_tools.data_model.annotations_utils import parse_annotations
+from tissue_map_tools.utils import open_precomputed_root
 
 RNG = default_rng(42)
 
@@ -29,7 +30,7 @@ def view_precomputed_in_neuroglancer(
     if viewer is None:
         viewer = neuroglancer.Viewer()
 
-    cv = CloudVolume(cloudpath=data_path)
+    cv = open_precomputed_root(data_path)
     data_type = cv.info["type"]
     # layer_name = layer_name if layer_name is not None else Path(cv.layerpath).name
     layer_name = layer_name if layer_name is not None else cv.info["scales"][0]["key"]

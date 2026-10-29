@@ -33,6 +33,8 @@ from tissue_map_tools.converters import (
     DEFAULT_UNITS_FACTOR,
 )
 
+from tissue_map_tools.utils import open_precomputed_root
+
 # same as igneous defaults
 DEFAULT_NLOD = 0
 DEFAULT_SHAPE = (448, 448, 448)
@@ -92,6 +94,7 @@ def from_precomputed_raster_modify_scales_and_sharding(
     parallel: int | bool = True,
     sparse_progress: bool = True,
 ):
+    open_precomputed_root(data_path)
     task_queue = LocalTaskQueue(parallel=normalize_parallel(parallel))
     progress_ctx = (
         sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()
@@ -168,6 +171,7 @@ def from_precomputed_raster_to_precomputed_meshes(
     sharded: bool = True,
     sparse_progress: bool = True,
 ):
+    open_precomputed_root(data_path)  # fail early with a clear error
     task_queue = LocalTaskQueue(parallel=normalize_parallel(parallel))
     progress_ctx = (
         sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()

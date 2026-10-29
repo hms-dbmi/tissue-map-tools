@@ -1,5 +1,6 @@
 import socket
 from cloudvolume import CloudVolume
+from cloudvolume import exceptions as cv_exceptions
 import numpy as np
 import json
 from pathlib import Path
@@ -36,6 +37,37 @@ def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("localhost", 0)) 
         return s.getsockname()[1]
+
+
+def open_precomputed_root(data_path: str) -> CloudVolume:
+    """
+    Open the root of a precomputed dataset with CloudVolume.
+
+    CloudVolume expects a volume `info` file (with a `scales` entry). If `data_path`
+    instead points at an annotation folder (e.g. `<root>/molecule_baysor`), whose
+    `info` has `"@type": "neuroglancer_annotations_v1"`, CloudVolume fails with an
+    unhelpful `KeyError: 'scales'`; here that is turned into an explicit error.
+    """
+    try:
+        return CloudVolume(cloudpath=data_path)
+    except cv_exceptions.InfoUnavailableError as e:
+       raise ValueError(
+           f"No precomputed info file found for '{data_path}' "
+           f"(resolved to: {Path(data_path).expanduser().resolve()}). "
+           "Check the path; a relative path is resolved against the current "
+           "working directory."
+       ) from e
+    except KeyError as e:
+        if e.args and e.args[0] == "scales":
+            raise ValueError(
+                f"'{data_path}' does not look like the root of a precomputed volume: "
+                "its info file has no 'scales'. If it is an annotation folder, pass "
+                "the parent precomputed root instead (the one whose info file lists "
+                '"annotations": "<name>"); the annotation folder is then found '
+                "automatically."
+            ) from e
+        raise
+
 
 
 def compute_initial_camera_state(
@@ -104,7 +136,7 @@ def compute_initial_camera_state(
         A dict with `position`, `projectionScale`, and `projectionOrientation` keys,
         ready to pass as `initial_camera_state` to `view_precomputed_in_vitessce`.
     """
-    cv = CloudVolume(cloudpath=data_path)
+    cv = open_precomputed_root(cloudpath=data_path)
 
     fit_segments = camera_segments if camera_segments is not None else segments
     if fit_segments:
