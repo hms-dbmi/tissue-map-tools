@@ -41,8 +41,8 @@ sdata = sd.read_zarr(f)
 sdata_small = sd.bounding_box_query(
     sdata,
     axes=("x", "y", "z"),
-    min_coordinate=[4000, 0, -10],
-    max_coordinate=[5000, 1500, 200],
+    min_coordinate=[435, 0, -1],
+    max_coordinate=[545, 165, 22],
     target_coordinate_system="global",
 )
 
@@ -79,22 +79,21 @@ sdata_small = sd.bounding_box_query(
 # sdata["cells_baysor"] = cells_baysor_cropped
 
 ##
-# from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-#     raster=sdata["dapi_labels"],
-#     precomputed_path=str(precomputed_path),
-# )
-
-##
-# uncomment this to generate the raster data
-# from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
-#     raster=sdata["membrane_labels"],
-#     precomputed_path=str(precomputed_path),
-# )
+# we mesh the membrane labels: their ids match the "cell_id" instance key of the
+# "gene_expression_cellpose" table (the dapi labels use different ids for the same cell)
+from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+    raster=sdata["membrane_labels"],
+    precomputed_path=str(precomputed_path),
+)
 
 
 ##
 
 
+# the points converter ignores the transformations, so we apply them here (to microns)
+sdata["molecule_baysor"] = sd.transform(
+    sdata["molecule_baysor"], to_coordinate_system="global"
+)
 subset = RNG.choice(len(sdata["molecule_baysor"]), 100, replace=False)
 
 print(sdata["molecule_baysor"].columns)

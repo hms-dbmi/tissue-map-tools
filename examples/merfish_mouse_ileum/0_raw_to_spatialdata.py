@@ -70,6 +70,13 @@ molecules = sd.models.PointsModel.parse(
     feature_key="gene",
 )
 
+# the "global" coordinate system is built in pixel units (z is rescaled to the same
+# pixel units below); this is the pixel size in microns (0.10895, isotropic in x, y),
+# used at the end to express "global" in microns
+PIXEL_SIZE_UM = np.polyfit(df["x_pixel"], df["x_um"], deg=1)[0].item()
+assert np.isclose(PIXEL_SIZE_UM, np.polyfit(df["y_pixel"], df["y_um"], deg=1)[0])
+assert np.isclose(PIXEL_SIZE_UM, np.polyfit(df["z_pixel"], df["z_um"], deg=1)[0])
+
 
 def affine(x, a, b):
     return a * x + b
@@ -93,12 +100,16 @@ z_pixels_values = df.z_pixel.value_counts().sort_index().index.tolist()
 
 df = df.assign(layer=lambda df: affine(x=df["z_pixel"], a=a, b=b))
 df["layer"] = df["layer"].round(0).astype(int)
+# distance between z planes, in pixel units (13.768)
+Z_PIXELS_PER_PLANE = 1 / a
 
+# plane k (0-based) of the raster data is layer k + 1, i.e. z_pixel = k / a; so no
+# translation is needed
 affine_correct_z_pixel_raster = sd.transformations.Affine(
     [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [0, 0, 1 / a, -b / a],
+        [0, 0, Z_PIXELS_PER_PLANE, 0],
         [0, 0, 0, 1],
     ],
     input_axes=("x", "y", "z"),
@@ -162,9 +173,10 @@ sdata["cells_centroids_cellpose"] = cells
 sdata["gene_expression_cellpose"] = adata
 
 # parse cellpose segmentation (dapi and membrane labels)
+# the tif files are int32; igneous meshing (crackle) does not support signed integers
 data = imread(
     unzipped_path / "data_analysis/cellpose/cell_boundaries/results/cellpose_dapi.tif"
-)
+).astype(np.uint32)
 dapi_labels = sd.models.Labels3DModel.parse(
     data,
     transformations={"global": affine_correct_z_pixel_raster},
@@ -173,7 +185,7 @@ dapi_labels = sd.models.Labels3DModel.parse(
 data = imread(
     unzipped_path
     / "data_analysis/cellpose/cell_boundaries/results/cellpose_membrane.tif"
-)
+).astype(np.uint32)
 membrane_labels = sd.models.Labels3DModel.parse(
     data,
     transformations={"global": affine_correct_z_pixel_raster},
@@ -498,6 +510,35 @@ processed = process_pseudo3D_shapes(
 
 # sdata["cells_baysor"] = gdf_all_layers
 sdata["cells_baysor"] = processed
+
+##
+# express the "global" coordinate system in microns (the precomputed converters assume
+# microns, see units_factor).
+# The vector coordinates are pixel indices, while in SpatialData (and Neuroglancer) the
+# center of pixel i is at i + 0.5, so we also shift the vector data by half a pixel
+# (and by half a plane in z)
+half_pixel = {"x": 0.5, "y": 0.5, "z": 0.5 * Z_PIXELS_PER_PLANE}
+for _, element_name, element in sdata.gen_spatial_elements():
+    axes = tuple(ax for ax in sd.models.get_axes_names(element) if ax != "c")
+    transformations = [
+        sd.transformations.get_transformation(element, to_coordinate_system="global")
+    ]
+    if sd.models.get_model(element) in (sd.models.PointsModel, sd.models.ShapesModel):
+        transformations.append(
+            sd.transformations.Translation([half_pixel[ax] for ax in axes], axes=axes)
+        )
+    transformations.append(
+        sd.transformations.Scale([PIXEL_SIZE_UM] * len(axes), axes=axes)
+    )
+    sd.transformations.set_transformation(
+        element,
+        transformation=sd.transformations.Sequence(transformations),
+        to_coordinate_system="global",
+    )
+# the 2.5D shapes store z as a column (in pixel units), not in the transformation
+sdata["cells_baysor"]["z"] = (
+    sdata["cells_baysor"]["z"] + half_pixel["z"]
+) * PIXEL_SIZE_UM
 
 sdata.write(out_path / "merfish_mouse_ileum.sdata.zarr", overwrite=True)
 
