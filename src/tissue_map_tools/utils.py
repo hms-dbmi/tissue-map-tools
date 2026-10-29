@@ -136,7 +136,7 @@ def compute_initial_camera_state(
         A dict with `position`, `projectionScale`, and `projectionOrientation` keys,
         ready to pass as `initial_camera_state` to `view_precomputed_in_vitessce`.
     """
-    cv = open_precomputed_root(cloudpath=data_path)
+    cv = open_precomputed_root(data_path)
 
     fit_segments = camera_segments if camera_segments is not None else segments
     if fit_segments:
