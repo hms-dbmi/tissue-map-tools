@@ -51,6 +51,8 @@ test = [
 ]
 
 [tool.uv]
+[tool.pytest.ini_options]
+pythonpath = ["."]
 default-groups = ["examples"]
 
 [build-system]
