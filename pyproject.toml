@@ -17,7 +17,7 @@ dependencies = [
     "cloud-volume>=12.6.3",
     "xarray>=2024.9.0",
     "xmltodict>=1.0.2",
-    "vitessce[all]>=3.9.6",
+    "vitessce[all]>=3.9.8",
 ]
 
 [dependency-groups]

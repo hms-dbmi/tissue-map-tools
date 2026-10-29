@@ -6,13 +6,14 @@ from cloudvolume import CloudVolume
 import csv, io
 from urllib.parse import quote
 
-from .layer_specs import SegmentationLayerSpec, AnnotationLayerSpec, TabularObsSpec, SpatialDataObsSpec
+from .layer_specs import SegmentationLayerSpec, \
+    AnnotationLayerSpec, TabularObsSpec, SpatialDataObsSpec, LocationsLayerSpec
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
 from vitessce import (
     VitessceConfig, CoordinationLevel as CL, CoordinationType as ct,
     hconcat, vconcat, get_initial_coordination_scope_prefix,
     CsvWrapper, ObsSegmentationsNgPrecomputedWrapper, ObsPointsNgAnnotationsWrapper,
-    SpatialDataWrapper,
+    SpatialDataWrapper,  ObsLocationsNgAnnotationsWrapper,
 )
 
 from tissue_map_tools.utils import is_running_in_notebook, find_free_port
@@ -120,6 +121,22 @@ def _add_annotation(dataset, spec: AnnotationLayerSpec):
         channel["featureFilterMode"] = "featureSelection"
     return channel
 
+def _add_obs_locations(dataset, spec: LocationsLayerSpec):
+    """
+    Add cell/feature centroid locations as an `obsLocations.ng-annotations` file.
+    Unlike _add_segmentation/_add_annotation, this doesn't add or return a
+    channel dict -- centroids are rendered implicitly by the segmentationLayer
+    channel of the same obsType, reusing its visibility/opacity/color encoding.
+    """
+    coordination_values = {"obsType": spec.obs_type}
+    if spec.file_uid is not None:
+        coordination_values["fileUid"] = spec.file_uid
+    dataset.add_object(ObsLocationsNgAnnotationsWrapper(
+        data_path=spec.data_path,
+        data_url=spec.data_url,
+        coordination_values=coordination_values,
+        options=spec.options or None,
+    ))
 
 def _add_tabular(dataset, spec: TabularObsSpec):
     dataset.add_object(CsvWrapper(
@@ -186,6 +203,7 @@ def assemble_neuroglancer_config(
     spatial_rotation_orbit: float = 0,
     use_web_app: bool = False,
     spatialdata_obs: list[SpatialDataObsSpec] = (),
+    locations: list[LocationsLayerSpec] = (),
 ) -> VitessceConfig:
     """
     Build a VitessceConfig from segmentation/annotation/tabular/spatialdata
@@ -245,6 +263,11 @@ def assemble_neuroglancer_config(
     spatialdata_obs
         SpatialData obs sources (feature matrix, cell sets) read directly from a .sdata.zarr store. 
         Empty by default.
+    locations
+        Cell/feature centroid layers to add, each as an `obsLocations.ng-annotations`
+        file. These add no layer/channel coordination of their own -- they're
+        rendered implicitly by the segmentationLayer channel of the same obsType,
+        reusing its visibility, opacity, and color encoding. Empty by default.
 
     Returns
     -------
@@ -260,6 +283,10 @@ def assemble_neuroglancer_config(
 
     for t in tabular_obs:
         _add_tabular(dataset, t)
+
+    for loc in locations:
+        _add_obs_locations(dataset, loc)
+    
     spatialdata_added_obs_sets = [_add_spatialdata(dataset, s) for s in spatialdata_obs]
     seg_results = [
     _add_segmentation(dataset, s, use_web_app,
