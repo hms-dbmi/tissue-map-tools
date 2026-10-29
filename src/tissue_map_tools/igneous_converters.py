@@ -33,11 +33,28 @@ from tissue_map_tools.converters import (
     DEFAULT_UNITS_FACTOR,
 )
 
+from tissue_map_tools.utils import open_precomputed_root
+
 # same as igneous defaults
 DEFAULT_NLOD = 0
 DEFAULT_SHAPE = (448, 448, 448)
 DEFAULT_MIN_CHUNK_SIZE = (256, 256, 256)
 
+def normalize_parallel(parallel: int | bool) -> int | bool:
+ """
+ Validate the `parallel` argument before handing it to `LocalTaskQueue`.
++
+ `True` lets taskqueue use all available CPUs, `False` runs serially (mapped to 1,
+ since a worker count of 0 makes the underlying process pool fail), and an `int`
+ is the number of worker processes.
+ """
+ if isinstance(parallel, bool):
+     return True if parallel else 1
+ if not isinstance(parallel, int) or parallel < 1:
+     raise ValueError(
+         f"parallel must be a bool or a positive integer, got {parallel!r}."
+     )
+ return parallel
 
 @contextlib.contextmanager
 def sparse_cloudvolume_progress():
@@ -77,7 +94,8 @@ def from_precomputed_raster_modify_scales_and_sharding(
     parallel: int | bool = True,
     sparse_progress: bool = True,
 ):
-    task_queue = LocalTaskQueue(parallel=parallel)
+    open_precomputed_root(data_path)
+    task_queue = LocalTaskQueue(parallel=normalize_parallel(parallel))
     progress_ctx = (
         sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()
     )
@@ -153,7 +171,8 @@ def from_precomputed_raster_to_precomputed_meshes(
     sharded: bool = True,
     sparse_progress: bool = True,
 ):
-    task_queue = LocalTaskQueue(parallel=parallel)
+    open_precomputed_root(data_path)  # fail early with a clear error
+    task_queue = LocalTaskQueue(parallel=normalize_parallel(parallel))
     progress_ctx = (
         sparse_cloudvolume_progress() if sparse_progress else contextlib.nullcontext()
     )
