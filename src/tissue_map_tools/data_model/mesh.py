@@ -23,3 +23,18 @@ class MultilodDracoInfo(BaseModel):
     segment_properties: Optional[str] = None
 
     model_config = ConfigDict(validate_by_name=True, extra="allow")
+
+
+class LegacyMeshInfo(BaseModel):
+    """
+    Pydantic model for the legacy single-resolution mesh format.
+
+    See the full specification at: https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/meshes.md
+    """
+
+    type: Literal["neuroglancer_legacy_mesh"] = Field(..., alias="@type")
+    # relative path to a segment properties directory, used only when the meshes are
+    # the data source (same as for MultilodDracoInfo)
+    segment_properties: Optional[str] = None
+
+    model_config = ConfigDict(validate_by_name=True, extra="allow")
