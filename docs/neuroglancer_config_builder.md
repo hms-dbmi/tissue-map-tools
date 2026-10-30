@@ -15,18 +15,18 @@ annotation layer, or real gene/cell-type data alongside them.
 | A `.sdata.zarr` store (gene matrix, cell-type sets) | `SpatialDataObsSpec` |
 
 A vitessce config is just: build the specs for what you have, pass them into
-`build_neuroglancer_config`.
+`build_vitessce_config`.
 
 ## 2. Minimal example
 
 ```python
 from tissue_map_tools.view import compute_initial_camera_state
 from tissue_map_tools.vitessce_configs.layer_specs import SegmentationLayerSpec, AnnotationLayerSpec
-from tissue_map_tools.vitessce_configs.neuroglancer_config_builder import build_neuroglancer_config
+from tissue_map_tools.vitessce_configs.neuroglancer_config_builder import build_vitessce_config
 
 data_url = "https://your-host/data/my_dataset"  # or data_path="/local/path" instead
 
-vc = build_neuroglancer_config(
+vc = build_vitessce_config(
     name="My dataset",
     segmentations=[SegmentationLayerSpec(file_uid="cells", data_url=data_url)],
     annotations=[AnnotationLayerSpec(file_uid="points", data_url=f"{data_url}/points", obs_type="point")],
@@ -39,7 +39,7 @@ Local data: use `data_path=` instead of `data_url=` on any spec — Vitessce
 serves it automatically, no manual server setup needed.
 
 
-**`build_neuroglancer_config` — all parameters**
+**`build_vitessce_config` — all parameters**
 
 *Data*
 - `segmentations: list[SegmentationLayerSpec] = ()` — segmentation/mesh layers.
@@ -86,7 +86,7 @@ Defined in [`src/tissue_map_tools/vitessce_configs/layer_specs.py`](../src/tissu
 - `obs_feature_matrix_path` must be the **full** path including the table, e.g. `"tables/my_table/X"` (not just `"X"` — see §4).
 - If your feature matrix and cell-type sets are in different tables, use two specs sharing the same `sdata_path`/`sdata_url`.
 
-**`build_neuroglancer_config`**
+**`build_vitessce_config`**
 - `extra_view_types=["featureList"]` adds a gene-search sidebar; `"obsSets"` is added automatically whenever needed.
 - `mesh_load_projection_scale_threshold` enables on-demand mesh loading (only meshes in view get fetched).
 
@@ -139,7 +139,7 @@ AnnotationLayerSpec(
 )
 ```
 ```python
-build_neuroglancer_config(..., mesh_load_projection_scale_threshold=1200)
+build_vitessce_config(..., mesh_load_projection_scale_threshold=1200)
 ```
 
 ## 5. Gotchas worth knowing up front

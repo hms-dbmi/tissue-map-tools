@@ -126,7 +126,7 @@ For more details to build complex views using Vitessce, please see the example n
 from tissue_map_tools.utils import compute_initial_camera_state
 from tissue_map_tools.vitessce_configs.layer_specs import SegmentationLayerSpec
 from tissue_map_tools.vitessce_configs.neuroglancer_config_builder import (
-    build_neuroglancer_config,
+    build_vitessce_config,
 )
 
 use_web_app = None
@@ -135,7 +135,7 @@ initial_camera_state = compute_initial_camera_state(
     data_path=str(precomputed_path),
 )
 
-vc = build_neuroglancer_config(
+vc = build_vitessce_config(
     name="Precomputed data",
     segmentations=[
         SegmentationLayerSpec(file_uid="segmentation", data_path=str(precomputed_path)),
