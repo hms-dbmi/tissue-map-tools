@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Eric Moerth", email = "ericmoerth@g.harvard.edu" },
     { name = "Luca Marconato", email = "luca.marconato@embl.de" },
-    { name = "Tabassum Kakar", email = "tkakar@wpi.edu" }
+    { name = "Tabassum Kakar", email = "tabassum_kakar@hms.harvard.edu" }
 ]
 requires-python = ">=3.12"
 dependencies = [
