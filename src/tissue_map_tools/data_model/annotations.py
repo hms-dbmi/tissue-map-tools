@@ -904,6 +904,7 @@ def get_coordinates_and_kd_tree(
     else:
         xyz = points[["x", "y", "z"]].values
     dtype = xyz.dtype
+    #TODO: remove this - taken care by per-column error message, by `validate_points_dataframe()`
     if not (
         dtype in SUPPORTED_DTYPES
         and (np.issubdtype(dtype, np.integer) or np.issubdtype(dtype, np.floating))

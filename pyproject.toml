@@ -5,7 +5,8 @@ description = "Utilities for working with tissue maps and 3D spatial omics in Py
 readme = "README.md"
 authors = [
     { name = "Eric Moerth", email = "ericmoerth@g.harvard.edu" },
-    { name = "Luca Marconato", email = "luca.marconato@embl.de" }
+    { name = "Luca Marconato", email = "luca.marconato@embl.de" },
+    { name = "Tabassum Kakar", email = "tabassum_kakar@hms.harvard.edu" }
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -50,6 +51,8 @@ test = [
 ]
 
 [tool.uv]
+[tool.pytest.ini_options]
+pythonpath = ["."]
 default-groups = ["examples"]
 
 [build-system]

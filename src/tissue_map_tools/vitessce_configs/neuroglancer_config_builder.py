@@ -208,7 +208,7 @@ def assemble_neuroglancer_config(
     """
     Build a VitessceConfig from segmentation/annotation/tabular/spatialdata
     layer specs and return it directly -- no widget, no web_app, no serving,
-    no blocking. This is the shared core used by both build_neuroglancer_config
+    no blocking. This is the shared core used by both build_vitessce_config
     (the notebook/script entry point, which adds widget/web_app/blocking on
     top) and tests, which need the bare config without side effects.
 
@@ -259,7 +259,7 @@ def assemble_neuroglancer_config(
         Whether the generated obsSets CSV `data:` URLs should be encoded for
         embedding in a `vitessce.io` URL (True) or a locally-served widget
         (False, default). This function never opens a browser or returns a
-        widget itself — see build_neuroglancer_config for that.
+        widget itself — see build_vitessce_config for that.
     spatialdata_obs
         SpatialData obs sources (feature matrix, cell sets) read directly from a .sdata.zarr store. 
         Empty by default.
@@ -272,7 +272,7 @@ def assemble_neuroglancer_config(
     Returns
     -------
     The assembled `VitessceConfig` object -- no widget, no serving, no
-    blocking. Pass it to `build_neuroglancer_config`'s tail (or call
+    blocking. Pass it to `build_vitessce_config`'s tail (or call
     `.widget()` / `.web_app()`) to actually view it.
     """
     if use_web_app is None:
@@ -346,7 +346,7 @@ def assemble_neuroglancer_config(
     return vc
 
 
-def build_neuroglancer_config(*args, use_web_app: bool | None = None, **kwargs):
+def build_vitessce_config(*args, use_web_app: bool | None = None, **kwargs):
     """
         All other parameters are forwarded to assemble_neuroglancer_config --
         see its docstring for segmentations/annotations/tabular_obs/spatialdata_obs,
