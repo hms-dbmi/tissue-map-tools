@@ -43,7 +43,6 @@ DEFAULT_MIN_CHUNK_SIZE = (256, 256, 256)
 def normalize_parallel(parallel: int | bool) -> int | bool:
  """
  Validate the `parallel` argument before handing it to `LocalTaskQueue`.
-+
  `True` lets taskqueue use all available CPUs, `False` runs serially (mapped to 1,
  since a worker count of 0 makes the underlying process pool fail), and an `int`
  is the number of worker processes.
@@ -363,6 +362,71 @@ def from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
         parallel=parallel,
         sharded=sharded_mesh,
         sparse_progress=sparse_progress,
+    )
+
+ 
+def from_mask_to_precomputed_raster_and_meshes(
+    mask_path: str | Path,
+    precomputed_path: str | Path,
+    dims: tuple[str, ...] | None = None,
+    voxel_size_um: dict[str, float] | None = None,
+    intermediate_zarr_path: str | Path | None = None,
+    multiscale: bool = True,
+    sharded_raster: bool = True,
+    sharded_mesh: bool = True,
+    mesh_name: str | None = None,
+    units_factor: int = DEFAULT_UNITS_FACTOR,
+    object_ids: list[int] | None = None,
+    shape: tuple[int, int, int] = DEFAULT_SHAPE,
+    nlod: int = DEFAULT_NLOD,
+    min_chunk_size: tuple[int, int, int] = DEFAULT_MIN_CHUNK_SIZE,
+    parallel: int | bool = True,
+    sparse_progress: bool = True,
+) -> None:
+    """
+    Convert a label mask to a precomputed volume with meshes, whatever its file format.
+    ... (docstring as in the file)
+    """
+    from tissue_map_tools.masks import (
+        detect_mask_format,
+        read_tiff_mask,
+        tiff_mask_to_labels_element,
+    )
+
+    common = dict(
+        precomputed_path=str(precomputed_path),
+        multiscale=multiscale,
+        sharded_raster=sharded_raster,
+        sharded_mesh=sharded_mesh,
+        mesh_name=mesh_name,
+        units_factor=units_factor,
+        object_ids=object_ids,
+        shape=shape,
+        nlod=nlod,
+        min_chunk_size=min_chunk_size,
+        parallel=parallel,
+        sparse_progress=sparse_progress,
+    )
+    fmt = detect_mask_format(mask_path)
+    if fmt == "ome-zarr":
+        if dims is not None or voxel_size_um is not None:
+            raise ValueError("dims and voxel_size_um are only used for TIFF masks.")
+        from_ome_zarr_04_raster_to_sharded_precomputed_raster_and_meshes(
+            ome_zarr_path=str(mask_path), is_labels=True, **common
+        )
+        return
+
+    mask = read_tiff_mask(mask_path, dims=dims, voxel_size_um=voxel_size_um)
+    labels = tiff_mask_to_labels_element(mask)
+    if intermediate_zarr_path is not None:
+        from spatialdata import SpatialData
+
+        SpatialData.init_from_elements({"labels": labels}).write(
+            str(intermediate_zarr_path), overwrite=True
+        )
+        labels = SpatialData.read(str(intermediate_zarr_path))["labels"]
+    from_spatialdata_raster_to_sharded_precomputed_raster_and_meshes(
+        raster=labels, **common
     )
 
 
