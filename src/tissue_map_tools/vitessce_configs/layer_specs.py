@@ -95,3 +95,14 @@ class LocationsLayerSpec:
     data_url: str | None = None
     file_uid: str | None = None
     options: dict | None = None
+    # The fields below are only used when no SegmentationLayerSpec of the same
+    # obs_type is given (centroids without meshes): a segmentationLayer channel
+    # is then added for these centroids alone, since Vitessce renders centroids
+    # through the segmentation channel of the same obsType.
+    spatial_layer_label: str | None = None
+    spatial_channel_color: list[int] | None = None
+    obs_color_encoding: str = "cellSetSelection"
+    obs_sets_csv: TabularObsSpec | None = None
+    """obsSets for coloring the centroids by set (e.g., cell types). For
+    cellSetSelection, each obsSets `column` must match an enum property of the
+    centroid annotations."""
