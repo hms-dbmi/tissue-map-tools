@@ -57,7 +57,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, s
     elif resolved_ids and spec.auto_generate_obs_sets:
         set_name = spec.obs_set_name or spec.spatial_layer_label or spec.file_uid
         dataset.add_object(CsvWrapper(
-            csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, for_web_app=use_web_app),
+            csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, set_column=set_name, for_web_app=use_web_app),
             data_type="obsSets",
             options={"obsIndex": "id", "obsSets": [{"name": set_name, "column": set_name}]},
             coordination_values={"obsType": spec.obs_type},
