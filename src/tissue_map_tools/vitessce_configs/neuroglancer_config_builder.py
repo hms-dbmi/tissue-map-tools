@@ -57,7 +57,7 @@ def _add_segmentation(dataset, spec: SegmentationLayerSpec, use_web_app: bool, s
     elif resolved_ids and spec.auto_generate_obs_sets:
         set_name = spec.obs_set_name or spec.spatial_layer_label or spec.file_uid
         dataset.add_object(CsvWrapper(
-            csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, for_web_app=use_web_app),
+            csv_url=make_obs_set_csv_data_url(resolved_ids, set_name, set_column=set_name, for_web_app=use_web_app),
             data_type="obsSets",
             options={"obsIndex": "id", "obsSets": [{"name": set_name, "column": set_name}]},
             coordination_values={"obsType": spec.obs_type},
@@ -180,6 +180,35 @@ def make_obs_set_csv_data_url(
     return f"data:text/csv,{encoded}"
 
 
+def centroid_only_channel(dataset, spec: LocationsLayerSpec):
+    """
+    Segmentation layer/channel for centroids without meshes. There is no
+    obsSegmentations file for its fileUid, so only the centroids are rendered
+    (the segmentation data is optional for the Neuroglancer view).
+    """
+    added_obs_sets = False
+    if spec.obs_sets_csv is not None:
+        _add_tabular(dataset, spec.obs_sets_csv)
+        added_obs_sets = True
+    channel = {
+        "obsType": spec.obs_type,
+        "spatialChannelVisible": True,
+        ct.OBS_COLOR_ENCODING: spec.obs_color_encoding,
+    }
+    if spec.spatial_channel_color is not None:
+        channel["spatialChannelColor"] = spec.spatial_channel_color
+    file_uid = spec.file_uid or f"{spec.obs_type}-centroids"
+    channel_dict = {
+        "fileUid": file_uid,
+        "spatialLayerOpacity": 1,
+        "spatialLayerVisible": True,
+        "spatialLayerLabel": spec.spatial_layer_label or file_uid,
+        "segmentationChannel": CL([channel]),
+    }
+    return channel_dict, added_obs_sets
+
+
+
 def assemble_neuroglancer_config(
     segmentations: list[SegmentationLayerSpec] = (),
     annotations: list[AnnotationLayerSpec] = (),
@@ -267,7 +296,9 @@ def assemble_neuroglancer_config(
         Cell/feature centroid layers to add, each as an `obsLocations.ng-annotations`
         file. These add no layer/channel coordination of their own -- they're
         rendered implicitly by the segmentationLayer channel of the same obsType,
-        reusing its visibility, opacity, and color encoding. Empty by default.
+        reusing its visibility, opacity, and color encoding. When no segmentation
+        of the same obsType is given, a centroid-only segmentationLayer channel is
+        added from the spec's channel fields. Empty by default.
 
     Returns
     -------
@@ -292,6 +323,12 @@ def assemble_neuroglancer_config(
     _add_segmentation(dataset, s, use_web_app,
                        skip_segment_discovery=mesh_load_projection_scale_threshold is not None)
         for s in segmentations
+    ]
+    # Centroids without a segmentation of the same obsType get their own channel.
+    seg_obs_types = {s.obs_type for s in segmentations}
+    seg_results += [
+        centroid_only_channel(dataset, loc)
+        for loc in locations if loc.obs_type not in seg_obs_types
     ]
     seg_channels = [channel for channel, _ in seg_results]
     any_obs_sets = any(added for _, added in seg_results) or any(spatialdata_added_obs_sets)
