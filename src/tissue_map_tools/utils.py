@@ -4,7 +4,7 @@ from cloudvolume import exceptions as cv_exceptions
 import numpy as np
 import json
 from pathlib import Path
-
+from cloudfiles import CloudFiles
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
