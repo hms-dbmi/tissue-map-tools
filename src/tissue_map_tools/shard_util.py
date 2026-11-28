@@ -37,7 +37,8 @@ def get_ids_from_mesh_files(
     meta = cv.mesh.meta
     cache = cv.mesh.cache
     if "sharding" in cv.mesh.meta.info:
-        data = cv.mesh.meta.info["sharding"]
+        # to avoid changing the cv in place
+        data = dict(cv.mesh.meta.info["sharding"])
         data["type"] = data["@type"]
         del data["@type"]
         sharding_specification = ShardingSpecification(**data)
@@ -51,16 +52,22 @@ def get_ids_from_mesh_files(
                 meta=meta, cache=cache, spec=sharding_specification
             )
         # list all shard files
+        data_path = Path(data_path)
         if shard_filename is None:
-            shard_files = [str(f) for f in data_path.glob("*.shard")]
+            shard_files = sorted(f.name for f in data_path.glob("*.shard"))
         else:
-            shard_files = [str(Path(data_path) / shard_filename)]
+            shard_files = [shard_filename]
+        # ShardReader resolves filenames against its cloudpath (the dataset root), so
+        # pass "<mesh subdir>/<file>.shard" -- relative to root_data_path, not to the cwd.
+        mesh_subdir = (
+            data_path.resolve().relative_to(Path(root_data_path).resolve()).as_posix()
+        )
         mesh_ids = []
         for shard_file in shard_files:
-            ids = shard_reader.list_labels(shard_file)
+            ids =  shard_reader.list_labels(f"{mesh_subdir}/{shard_file}")
             ids = [int(id) for id in ids]
             mesh_ids.extend(ids)
     else:
-        index_files = [f.stem for f in data_path.glob("*.index")]
+        index_files = [f.stem for f in Path(data_path).glob("*.index")]
         mesh_ids = [int(f) for f in index_files]
     return mesh_ids

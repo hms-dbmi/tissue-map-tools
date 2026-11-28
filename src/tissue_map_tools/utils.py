@@ -4,7 +4,7 @@ from cloudvolume import exceptions as cv_exceptions
 import numpy as np
 import json
 from pathlib import Path
-
+from cloudfiles import CloudFiles
 from tissue_map_tools.data_model.annotations import find_annotations_from_cloud_volume
 
 from tissue_map_tools.shard_util import get_ids_from_mesh_files
@@ -165,8 +165,9 @@ def compute_initial_camera_state(
                 corners.append((vertices.min(axis=0), vertices.max(axis=0)))
 
         for annotation_name in find_annotations_from_cloud_volume(cv):
-            with open(Path(data_path) / annotation_name / "info") as f:
-                annotation_info = json.load(f)
+            annotation_info = CloudFiles(cv.cloudpath).get_json(f"{annotation_name}/info")
+            if annotation_info is None:
+                continue
             corners.append(
                 (
                     np.array(annotation_info["lower_bound"], dtype=float),

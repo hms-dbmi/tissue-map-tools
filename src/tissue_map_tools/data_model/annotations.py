@@ -1268,13 +1268,30 @@ def read_spatial_index(
 
 def find_annotations_from_cloud_volume(cv: CloudVolume) -> list[str]:
     """
-    Find all annotations in a cloud volume.
+    Prefers the root info's own `annotations` key (works for local and remote
+    paths, since it's already in the fetched info dict). Falls back to listing
+    local subdirectories only when that key is absent; remote datasets without
+    the key return an empty list instead of raising.
+     """
+    try:
+        annotations_key = cv.meta.info.get("annotations")
+    except AttributeError:
+        annotations_key = None
 
-    Annotations do not appear to be listed in the root info file, so we need to
-    manually explore each info file for each folder in the cloud volume path.
-    """
+    if annotations_key:
+        if isinstance(annotations_key, str):
+            return [annotations_key]
+        return list(annotations_key)
+    
     annotations_names = []
-    cv_path = Path(cv.meta.path.basepath) / cv.meta.path.layer
+    try:
+        cv_path = Path(cv.meta.path.basepath) / cv.meta.path.layer
+    except (AttributeError, TypeError):
+        return annotations_names
+
+    if not cv_path.is_dir():  # remote URL or missing path: nothing to list
+        return annotations_names
+
     for subpath in cv_path.iterdir():
         subpath = Path(subpath)
         if not subpath.is_dir():
@@ -1285,9 +1302,11 @@ def find_annotations_from_cloud_volume(cv: CloudVolume) -> list[str]:
         if not info_file.is_file():
             continue
 
-        with open(info_file, "r") as f:
-            info = json.load(f)
-            type_ = info.get("@type", str(subpath))
-            if type_ == "neuroglancer_annotations_v1":
-                annotations_names.append(subpath.name)
+        try:
+            with open(info_file, "r") as f:
+                info = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if info.get("@type") == "neuroglancer_annotations_v1":
+           annotations_names.append(subpath.name)
     return annotations_names
